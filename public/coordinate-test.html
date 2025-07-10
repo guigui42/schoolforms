@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test des Coordonnées PDF - ALSH EDPP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        .coordinate-list {
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .coordinate-item {
+            margin: 5px 0;
+            padding: 3px 5px;
+            border-radius: 3px;
+        }
+        .child { background-color: #ffebee; }
+        .address { background-color: #e8f5e8; }
+        .father { background-color: #e3f2fd; }
+        .mother { background-color: #fce4ec; }
+        .emergency { background-color: #fff3e0; }
+        .grid { background-color: #f5f5f5; }
+        
+        .buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.test-btn {
+            background-color: #ff9800;
+        }
+        button.test-btn:hover {
+            background-color: #f57c00;
+        }
+        
+        .info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        
+        .form-preview {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .form-preview h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .form-data {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .form-field {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-field label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .form-field input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test des Coordonnées PDF - ALSH EDPP 2025-2026</h1>
+        
+        <div class="info">
+            <h3>Instructions</h3>
+            <p>Cette page vous permet de tester les coordonnées de placement des champs dans le PDF ALSH EDPP. 
+            Remplissez les champs ci-dessous avec vos données de test, puis cliquez sur "Générer PDF de Test" 
+            pour voir où les informations sont placées sur le formulaire.</p>
+        </div>
+        
+        <div class="form-preview">
+            <h3>Données de Test</h3>
+            <div class="form-data">
+                <div class="form-field">
+                    <label>Nom de l'enfant:</label>
+                    <input type="text" id="childLastName" value="DUPONT" />
+                </div>
+                <div class="form-field">
+                    <label>Prénom de l'enfant:</label>
+                    <input type="text" id="childFirstName" value="Marie" />
+                </div>
+                <div class="form-field">
+                    <label>Date de naissance:</label>
+                    <input type="text" id="birthDate" value="15/06/2010" />
+                </div>
+                <div class="form-field">
+                    <label>Nationalité:</label>
+                    <input type="text" id="nationality" value="Française" />
+                </div>
+                <div class="form-field">
+                    <label>Adresse:</label>
+                    <input type="text" id="address" value="123 rue de la Paix" />
+                </div>
+                <div class="form-field">
+                    <label>Code postal:</label>
+                    <input type="text" id="postalCode" value="75001" />
+                </div>
+                <div class="form-field">
+                    <label>Ville:</label>
+                    <input type="text" id="city" value="Paris" />
+                </div>
+                <div class="form-field">
+                    <label>Nom du père:</label>
+                    <input type="text" id="fatherLastName" value="DUPONT" />
+                </div>
+                <div class="form-field">
+                    <label>Prénom du père:</label>
+                    <input type="text" id="fatherFirstName" value="Jean" />
+                </div>
+                <div class="form-field">
+                    <label>Téléphone père:</label>
+                    <input type="text" id="fatherPhone" value="06 12 34 56 78" />
+                </div>
+                <div class="form-field">
+                    <label>Email père:</label>
+                    <input type="text" id="fatherEmail" value="jean.dupont@email.com" />
+                </div>
+                <div class="form-field">
+                    <label>Nom de la mère:</label>
+                    <input type="text" id="motherLastName" value="MARTIN" />
+                </div>
+                <div class="form-field">
+                    <label>Prénom de la mère:</label>
+                    <input type="text" id="motherFirstName" value="Sophie" />
+                </div>
+                <div class="form-field">
+                    <label>Téléphone mère:</label>
+                    <input type="text" id="motherPhone" value="06 98 76 54 32" />
+                </div>
+                <div class="form-field">
+                    <label>Email mère:</label>
+                    <input type="text" id="motherEmail" value="sophie.martin@email.com" />
+                </div>
+                <div class="form-field">
+                    <label>Contact d'urgence:</label>
+                    <input type="text" id="emergencyName" value="Grand-mère Dupont" />
+                </div>
+                <div class="form-field">
+                    <label>Tél. urgence:</label>
+                    <input type="text" id="emergencyPhone" value="01 23 45 67 89" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="buttons">
+            <button onclick="generateTestPDF()">Générer PDF de Test</button>
+            <button class="test-btn" onclick="generateCalibrationPDF()">Générer PDF de Calibration</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>Coordonnées Actuelles</h2>
+            <div class="coordinate-list">
+                <div class="coordinate-item child">ENFANT: Nom (200, 750) | Prénom (400, 750) | Naissance (200, 730) | Nationalité (400, 730)</div>
+                <div class="coordinate-item address">ADRESSE: Rue (200, 670) | Code postal (200, 650) | Ville (300, 650) | Pays (450, 650)</div>
+                <div class="coordinate-item father">PÈRE: Nom (200, 600) | Prénom (400, 600) | Téléphone (200, 520) | Email (400, 520)</div>
+                <div class="coordinate-item mother">MÈRE: Nom (200, 480) | Prénom (400, 460) | Téléphone (200, 400) | Email (400, 400)</div>
+                <div class="coordinate-item emergency">URGENCE: Nom (200, 360) | Téléphone (200, 340) | Relation (400, 340)</div>
+                <div class="coordinate-item grid">REPÈRES: Coins (50,50) (545,50) (50,800) (545,800)</div>
+            </div>
+        </div>
+        
+        <div class="info">
+            <h3>Comment ajuster les coordonnées</h3>
+            <p><strong>Système de coordonnées PDF:</strong></p>
+            <ul>
+                <li>X = 0 à gauche de la page, augmente vers la droite</li>
+                <li>Y = 0 en bas de la page, augmente vers le haut</li>
+                <li>Page A4 = 595 × 842 points</li>
+                <li>Si le texte est trop à gauche → augmenter X</li>
+                <li>Si le texte est trop haut → diminuer Y</li>
+                <li>Si le texte est trop bas → augmenter Y</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function generateTestPDF() {
+            // This would integrate with your React app's PDF generation
+            alert('Pour générer le PDF de test, utilisez le bouton "Test Coordonnées" dans l\'application React.');
+        }
+        
+        function generateCalibrationPDF() {
+            // This would integrate with your React app's calibration PDF generation
+            alert('Pour générer le PDF de calibration, utilisez le bouton "Test Coordonnées" dans l\'application React.');
+        }
+        
+        // Update display when values change
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', function() {
+                console.log('Updated:', this.id, '=', this.value);
+            });
+        });
+    </script>
+</body>
+</html>

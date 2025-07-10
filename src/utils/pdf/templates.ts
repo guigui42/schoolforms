@@ -39,58 +39,58 @@ export const ALSH_EDPP_TEMPLATE: PDFTemplate = {
   description: 'Dossier d\'inscription pour ALSH EDPP année scolaire 2025-2026',
   
   fields: {
-    // SECTION 1: Child Information (Top section)
-    'child.lastName': { x: 235, y: 765, fontSize: 10 },
-    'child.firstName': { x: 425, y: 765, fontSize: 10 },
-    'child.birthDate': { x: 175, y: 740, fontSize: 10 },
-    'child.nationality': { x: 505, y: 740, fontSize: 10 },
-    'child.grade': { x: 140, y: 600, fontSize: 10 },
-    'child.school': { x: 300, y: 600, fontSize: 10 },
+    // SECTION 1: Child Information (Calibrated based on visual feedback)
+    'child.lastName': { x: 270, y: 540, fontSize: 10 },           // "NOM" field
+    'child.firstName': { x: 430, y: 540, fontSize: 10 },          // "PRENOM" field  
+    'child.birthDate': { x: 270, y: 515, fontSize: 10 },          // "Né(e) le" field
+    'child.nationality': { x: 500, y: 515, fontSize: 10 },        // "Nationalité" field
+    'child.grade': { x: 270, y: 760, fontSize: 10 },              // "Classe" field (top)
+    'child.school': { x: 400, y: 760, fontSize: 10 },             // "Année" field (top)
 
-    // SECTION 2: Address Information
-    'address.street': { x: 115, y: 700, fontSize: 9 },
-    'address.postalCode': { x: 145, y: 680, fontSize: 10 },
-    'address.city': { x: 355, y: 680, fontSize: 10 },
-    'address.country': { x: 500, y: 680, fontSize: 10 },
+    // SECTION 2: Address Information (Calibrated)
+    'address.street': { x: 170, y: 490, fontSize: 9 },            // "ADRESSE" field
+    'address.postalCode': { x: 270, y: 465, fontSize: 10 },       // "Code postal" field
+    'address.city': { x: 400, y: 465, fontSize: 10 },             // "Ville" field
+    'address.country': { x: 500, y: 465, fontSize: 10 },          // Country field
 
-    // SECTION 3: Father Information (PÈRE)
-    'father.lastName': { x: 235, y: 580, fontSize: 10 },
-    'father.firstName': { x: 425, y: 580, fontSize: 10 },
-    'father.nationality': { x: 190, y: 555, fontSize: 10 },
-    'father.address': { x: 115, y: 555, fontSize: 9 },
-    'father.profession': { x: 165, y: 530, fontSize: 9 },
-    'father.employer': { x: 405, y: 530, fontSize: 9 },
-    'father.mobile': { x: 165, y: 510, fontSize: 9 },
-    'father.email': { x: 355, y: 510, fontSize: 9 },
+    // SECTION 3: Father Information (Calibrated)
+    'father.lastName': { x: 270, y: 380, fontSize: 10 },          // "Nom du père" field
+    'father.firstName': { x: 430, y: 380, fontSize: 10 },         // "Prénom" field
+    'father.nationality': { x: 200, y: 355, fontSize: 10 },       // "Nationalité" field
+    'father.address': { x: 200, y: 330, fontSize: 9 },            // "ADRESSE" field
+    'father.profession': { x: 200, y: 305, fontSize: 9 },         // "Profession" field
+    'father.employer': { x: 400, y: 305, fontSize: 9 },           // "Employeur" field
+    'father.mobile': { x: 200, y: 280, fontSize: 9 },             // "Mobile" field
+    'father.email': { x: 370, y: 280, fontSize: 9 },              // "Mail" field
 
-    // SECTION 4: Mother Information (MÈRE)
-    'mother.maidenName': { x: 355, y: 455, fontSize: 10 },
-    'mother.marriedName': { x: 505, y: 455, fontSize: 10 },
-    'mother.firstName': { x: 205, y: 435, fontSize: 10 },
-    'mother.nationality': { x: 425, y: 435, fontSize: 10 },
-    'mother.address': { x: 115, y: 410, fontSize: 9 },
-    'mother.profession': { x: 165, y: 385, fontSize: 9 },
-    'mother.employer': { x: 405, y: 385, fontSize: 9 },
-    'mother.mobile': { x: 165, y: 365, fontSize: 9 },
-    'mother.email': { x: 355, y: 365, fontSize: 9 },
+    // SECTION 4: Mother Information (Calibrated)
+    'mother.maidenName': { x: 430, y: 190, fontSize: 10 },        // "Nom de jeune fille" field
+    'mother.marriedName': { x: 500, y: 190, fontSize: 10 },       // "Nom marital" field
+    'mother.firstName': { x: 270, y: 165, fontSize: 10 },         // "Prénom" field
+    'mother.nationality': { x: 400, y: 165, fontSize: 10 },       // "Nationalité" field
+    'mother.address': { x: 200, y: 140, fontSize: 9 },            // "ADRESSE" field
+    'mother.profession': { x: 200, y: 115, fontSize: 9 },         // "Profession" field
+    'mother.employer': { x: 400, y: 115, fontSize: 9 },           // "Employeur" field
+    'mother.mobile': { x: 200, y: 90, fontSize: 9 },              // "Mobile" field
+    'mother.email': { x: 370, y: 90, fontSize: 9 },               // "Mail" field
 
-    // SECTION 5: Emergency Contact Information
-    'emergency.lastName': { x: 200, y: 320, fontSize: 9 },
-    'emergency.firstName': { x: 350, y: 320, fontSize: 9 },
-    'emergency.phone': { x: 450, y: 320, fontSize: 9 },
-    'emergency.relationship': { x: 200, y: 300, fontSize: 9 },
+    // SECTION 5: Emergency Contact Information (Estimated positioning)
+    'emergency.lastName': { x: 200, y: 200, fontSize: 9 },
+    'emergency.firstName': { x: 350, y: 200, fontSize: 9 },
+    'emergency.phone': { x: 200, y: 180, fontSize: 9 },
+    'emergency.relationship': { x: 400, y: 180, fontSize: 9 },
 
-    // SECTION 6: Medical Information
-    'medical.allergies': { x: 150, y: 260, fontSize: 8 },
-    'medical.medications': { x: 150, y: 240, fontSize: 8 },
-    'medical.conditions': { x: 150, y: 220, fontSize: 8 },
-    'medical.notes': { x: 150, y: 200, fontSize: 8 },
+    // SECTION 6: Medical Information (Estimated positioning)
+    'medical.allergies': { x: 200, y: 150, fontSize: 8 },
+    'medical.medications': { x: 200, y: 130, fontSize: 8 },
+    'medical.conditions': { x: 200, y: 110, fontSize: 8 },
+    'medical.notes': { x: 200, y: 90, fontSize: 8 },
 
-    // SECTION 7: Administrative
-    'admin.date': { x: 400, y: 100, fontSize: 10 },
-    'admin.place': { x: 300, y: 100, fontSize: 10 },
-    'admin.year': { x: 450, y: 780, fontSize: 12 },
-    'admin.institution': { x: 300, y: 780, fontSize: 12 },
+    // SECTION 7: Administrative (Calibrated)
+    'admin.date': { x: 400, y: 50, fontSize: 10 },                // Date field
+    'admin.place': { x: 200, y: 50, fontSize: 10 },               // Place field
+    'admin.year': { x: 400, y: 760, fontSize: 12 },               // Year field (top)
+    'admin.institution': { x: 200, y: 800, fontSize: 12 },        // Institution header
   },
 
   getFieldMappings: (family: Family) => {
