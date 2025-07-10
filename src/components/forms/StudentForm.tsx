@@ -13,13 +13,13 @@ import {
   Text
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
-import { UseFormReturnType } from '@mantine/form';
+import { useForm } from '@mantine/form';
 import { IconTrash, IconPlus } from '@tabler/icons-react';
 import { GRADES } from '../../utils/constants';
 import type { StudentFormData } from '../../schemas/student';
 
 interface StudentFormProps {
-  form: UseFormReturnType<StudentFormData>;
+  form: ReturnType<typeof useForm<StudentFormData>>;
   onRemove?: () => void;
   canRemove?: boolean;
 }
@@ -116,7 +116,7 @@ interface StudentListFormProps {
   students: StudentFormData[];
   onAddStudent: () => void;
   onRemoveStudent: (index: number) => void;
-  getStudentForm: (index: number) => UseFormReturnType<StudentFormData>;
+  getStudentForm: (index: number) => ReturnType<typeof useForm<StudentFormData>>;
 }
 
 export const StudentListForm: React.FC<StudentListFormProps> = ({

@@ -10,13 +10,13 @@ import {
   Text,
   Collapse
 } from '@mantine/core';
-import { UseFormReturnType } from '@mantine/form';
+import { useForm } from '@mantine/form';
 import { IconTrash, IconPlus, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import type { EmergencyContactFormData } from '../../schemas/parent';
 
 interface EmergencyContactFormProps {
-  form: UseFormReturnType<EmergencyContactFormData>;
+  form: ReturnType<typeof useForm<EmergencyContactFormData>>;
   onRemove?: () => void;
   canRemove?: boolean;
 }
@@ -124,7 +124,7 @@ interface EmergencyContactListFormProps {
   contacts: EmergencyContactFormData[];
   onAddContact: () => void;
   onRemoveContact: (index: number) => void;
-  getContactForm: (index: number) => UseFormReturnType<EmergencyContactFormData>;
+  getContactForm: (index: number) => ReturnType<typeof useForm<EmergencyContactFormData>>;
 }
 
 export const EmergencyContactListForm: React.FC<EmergencyContactListFormProps> = ({

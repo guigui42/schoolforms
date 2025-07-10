@@ -19,10 +19,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { AddressForm } from './AddressForm';
 import { ParentForm } from './ParentForm';
+import { StudentForm } from './StudentForm';
+import { EmergencyContactForm } from './EmergencyContactForm';
 import { useFormStore } from '../../stores/formStore';
 import { PDFGenerator, createFieldMappingsFromFamily, createCoordinateMappingsFromFamily } from '../../utils/pdf';
 
-import type { AddressFormData, ParentFormData } from '../../schemas/parent';
+import type { AddressFormData, ParentFormData, EmergencyContactFormData } from '../../schemas/parent';
+import type { StudentFormData } from '../../schemas/student';
 import type { Family } from '../../types/forms';
 
 export const FamilyForm: React.FC = () => {
@@ -94,10 +97,59 @@ export const FamilyForm: React.FC = () => {
     },
   });
 
+  // Initialize student form
+  const studentForm = useForm<StudentFormData>({
+    initialValues: {
+      id: currentFamily?.students?.[0]?.id || uuidv4(),
+      firstName: currentFamily?.students?.[0]?.firstName || '',
+      lastName: currentFamily?.students?.[0]?.lastName || '',
+      birthDate: currentFamily?.students?.[0]?.birthDate || new Date(),
+      grade: currentFamily?.students?.[0]?.grade || 'CP',
+      school: currentFamily?.students?.[0]?.school || '',
+      photoAuthorization: currentFamily?.students?.[0]?.photoAuthorization || false,
+      transportAuthorization: currentFamily?.students?.[0]?.transportAuthorization || false,
+      medicalInfo: currentFamily?.students?.[0]?.medicalInfo || {
+        allergies: [],
+        medications: [],
+        conditions: [],
+        notes: '',
+      },
+      specialNeeds: currentFamily?.students?.[0]?.specialNeeds || '',
+    },
+    validate: {
+      firstName: (value) => value.trim().length < 2 ? 'Prénom requis' : null,
+      lastName: (value) => value.trim().length < 2 ? 'Nom requis' : null,
+      birthDate: (value) => !value ? 'Date de naissance requise' : null,
+      grade: (value) => !value ? 'Classe requise' : null,
+      school: (value) => value.trim().length < 2 ? 'École requise' : null,
+    },
+  });
+
+  // Initialize emergency contact form
+  const emergencyContactForm = useForm<EmergencyContactFormData>({
+    initialValues: {
+      id: currentFamily?.emergencyContacts?.[0]?.id || uuidv4(),
+      firstName: currentFamily?.emergencyContacts?.[0]?.firstName || '',
+      lastName: currentFamily?.emergencyContacts?.[0]?.lastName || '',
+      phone: currentFamily?.emergencyContacts?.[0]?.phone || '',
+      relationship: currentFamily?.emergencyContacts?.[0]?.relationship || '',
+    },
+    validate: {
+      firstName: (value) => value.trim().length < 2 ? 'Prénom requis' : null,
+      lastName: (value) => value.trim().length < 2 ? 'Nom requis' : null,
+      phone: (value) => {
+        if (!value.trim()) return 'Téléphone requis';
+        if (!/^[0-9\s\-+()]+$/.test(value)) return 'Téléphone invalide';
+        return null;
+      },
+      relationship: (value) => value.trim().length < 2 ? 'Lien requis' : null,
+    },
+  });
+
   // Auto-save on form changes
   useEffect(() => {
     const handleFormChange = () => {
-      if (addressForm.isValid() || parentForm.isValid()) {
+      if (addressForm.isValid() || parentForm.isValid() || studentForm.isValid() || emergencyContactForm.isValid()) {
         setIsAutoSaving(true);
         saveToStore();
         setTimeout(() => setIsAutoSaving(false), 500);
@@ -108,16 +160,16 @@ export const FamilyForm: React.FC = () => {
     const timeoutId = setTimeout(handleFormChange, 1000);
     
     return () => clearTimeout(timeoutId);
-  }, [addressForm.values, parentForm.values]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [addressForm.values, parentForm.values, studentForm.values, emergencyContactForm.values]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save to store function
   const saveToStore = () => {
     const familyData: Family = {
       id: currentFamily?.id || uuidv4(),
       address: addressForm.values,
-      students: currentFamily?.students || [],
+      students: [studentForm.values],
       parents: [parentForm.values],
-      emergencyContacts: currentFamily?.emergencyContacts || [],
+      emergencyContacts: [emergencyContactForm.values],
       preferences: currentFamily?.preferences || {
         notifications: true,
         language: 'fr',
@@ -143,6 +195,10 @@ export const FamilyForm: React.FC = () => {
         return addressForm.isValid();
       case 1: // Parent
         return parentForm.isValid();
+      case 2: // Student
+        return studentForm.isValid();
+      case 3: // Emergency Contact
+        return emergencyContactForm.isValid();
       default:
         return false;
     }
@@ -157,7 +213,7 @@ export const FamilyForm: React.FC = () => {
   const prevStep = () => setActive(prev => prev - 1);
 
   const handleSubmit = () => {
-    if (addressForm.isValid() && parentForm.isValid()) {
+    if (addressForm.isValid() && parentForm.isValid() && studentForm.isValid() && emergencyContactForm.isValid()) {
       saveToStore();
       notifications.show({
         title: 'Données sauvegardées',
@@ -168,13 +224,15 @@ export const FamilyForm: React.FC = () => {
       console.log('Family data saved:', {
         address: addressForm.values,
         parent: parentForm.values,
+        student: studentForm.values,
+        emergencyContact: emergencyContactForm.values,
         currentFamily: currentFamily
       });
     }
   };
 
   const handleGeneratePDF = async () => {
-    if (!addressForm.isValid() || !parentForm.isValid()) {
+    if (!addressForm.isValid() || !parentForm.isValid() || !studentForm.isValid() || !emergencyContactForm.isValid()) {
       notifications.show({
         title: 'Erreur',
         message: 'Veuillez remplir tous les champs requis avant de générer le PDF',
@@ -193,9 +251,9 @@ export const FamilyForm: React.FC = () => {
       const tempFamily = {
         id: currentFamily?.id || uuidv4(),
         address: addressForm.values,
-        students: currentFamily?.students || [],
+        students: [studentForm.values],
         parents: [parentForm.values],
-        emergencyContacts: currentFamily?.emergencyContacts || [],
+        emergencyContacts: [emergencyContactForm.values],
         preferences: currentFamily?.preferences || {
           notifications: true,
           language: 'fr',
@@ -208,29 +266,16 @@ export const FamilyForm: React.FC = () => {
 
       const pdfGenerator = new PDFGenerator();
       
-      // Try to load a simpler template first
-      const templates = [
-        'EDPP Contrat d\'engagement 2025-2026.pdf',
-        'Fiche d\'inscription EDPP - Mercredis Vacs sco 25-26.pdf',
-        'Dossier d\'inscription ALSH - EDPP 2025-2026.pdf',
-        'PERISCOLAIRE – 2025-2026 - Fiche d\'inscription (1).pdf'
-      ];
+      // Use the specific ALSH EDPP template
+      const templateName = 'Dossier d\'inscription ALSH - EDPP 2025-2026.pdf';
       
-      let loadedTemplate = null;
-      for (const template of templates) {
-        try {
-          console.log(`Trying to load template: ${template}`);
-          await pdfGenerator.loadTemplate(template);
-          loadedTemplate = template;
-          console.log(`Successfully loaded template: ${template}`);
-          break;
-        } catch (error) {
-          console.log(`Failed to load template ${template}:`, error);
-        }
-      }
-      
-      if (!loadedTemplate) {
-        throw new Error('Unable to load any PDF template');
+      try {
+        console.log(`Loading specific template: ${templateName}`);
+        await pdfGenerator.loadTemplate(templateName);
+        console.log(`Successfully loaded template: ${templateName}`);
+      } catch (error) {
+        console.log(`Failed to load template ${templateName}:`, error);
+        throw new Error(`Unable to load the ALSH EDPP template: ${templateName}`);
       }
       
       // Get all form fields for debugging
@@ -251,7 +296,7 @@ export const FamilyForm: React.FC = () => {
       
       notifications.show({
         title: 'PDF généré',
-        message: `Le formulaire ${loadedTemplate} a été généré avec succès`,
+        message: `Le formulaire ALSH EDPP a été généré avec succès`,
         color: 'green',
         icon: <IconDownload size={16} />,
       });
@@ -268,7 +313,7 @@ export const FamilyForm: React.FC = () => {
     }
   };
 
-  const progress = ((active + 1) / 3) * 100;
+  const progress = ((active + 1) / 5) * 100;
 
   return (
     <Container size="lg">
@@ -316,6 +361,28 @@ export const FamilyForm: React.FC = () => {
               />
             </Stepper.Step>
 
+            <Stepper.Step 
+              label="Enfant" 
+              description="Informations de l'enfant"
+              icon={isStepValid(2) ? <IconCheck /> : undefined}
+              color={isStepValid(2) ? "green" : undefined}
+            >
+              <StudentForm
+                form={studentForm}
+              />
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Contact d'urgence" 
+              description="Personne à contacter en cas d'urgence"
+              icon={isStepValid(3) ? <IconCheck /> : undefined}
+              color={isStepValid(3) ? "green" : undefined}
+            >
+              <EmergencyContactForm
+                form={emergencyContactForm}
+              />
+            </Stepper.Step>
+
             <Stepper.Completed>
               <Stack gap="md">
                 <Notification
@@ -339,7 +406,7 @@ export const FamilyForm: React.FC = () => {
                   loading={isGeneratingPDF}
                   leftSection={<IconDownload size={16} />}
                 >
-                  Générer PDF avec adresse et parent
+                  Générer PDF ALSH EDPP complet
                 </Button>
               </Stack>
             </Stepper.Completed>
@@ -350,7 +417,7 @@ export const FamilyForm: React.FC = () => {
               Précédent
             </Button>
             
-            {active < 2 ? (
+            {active < 4 ? (
               <Button 
                 onClick={nextStep}
                 disabled={!isStepValid(active)}
