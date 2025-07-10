@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Test</title>
+</head>
+<body>
+    <h1>PDF Template Test</h1>
+    <p>Testing PDF access from public folder:</p>
+    
+    <div id="results"></div>
+    
+    <script>
+        const templates = [
+            'EDPP Contrat d\'engagement 2025-2026.pdf',
+            'Fiche d\'inscription EDPP - Mercredis Vacs sco 25-26.pdf',
+            'Dossier d\'inscription ALSH - EDPP 2025-2026.pdf',
+            'PERISCOLAIRE – 2025-2026 - Fiche d\'inscription (1).pdf'
+        ];
+        
+        const resultsDiv = document.getElementById('results');
+        
+        templates.forEach(async (template) => {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${template}</strong>: `;
+            
+            try {
+                const response = await fetch(`/templates/${template}`);
+                const size = response.headers.get('content-length');
+                const type = response.headers.get('content-type');
+                
+                if (response.ok) {
+                    div.innerHTML += `✅ OK (${size} bytes, ${type})`;
+                    
+                    // Check if it's actually a PDF
+                    const arrayBuffer = await response.arrayBuffer();
+                    const firstBytes = new Uint8Array(arrayBuffer.slice(0, 10));
+                    const firstBytesStr = Array.from(firstBytes).map(b => String.fromCharCode(b)).join('');
+                    
+                    if (firstBytesStr.startsWith('%PDF-')) {
+                        div.innerHTML += ` - Valid PDF header`;
+                    } else {
+                        div.innerHTML += ` - ❌ Invalid PDF header: ${firstBytesStr}`;
+                    }
+                } else {
+                    div.innerHTML += `❌ Error: ${response.status} ${response.statusText}`;
+                }
+            } catch (error) {
+                div.innerHTML += `❌ Error: ${error.message}`;
+            }
+            
+            resultsDiv.appendChild(div);
+        });
+    </script>
+</body>
+</html>

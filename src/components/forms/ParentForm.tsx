@@ -11,12 +11,12 @@ import {
   ActionIcon,
   Text
 } from '@mantine/core';
-import { UseFormReturnType } from '@mantine/form';
+import { useForm } from '@mantine/form';
 import { IconTrash, IconPlus } from '@tabler/icons-react';
 import type { ParentFormData } from '../../schemas/parent';
 
 interface ParentFormProps {
-  form: UseFormReturnType<ParentFormData>;
+  form: ReturnType<typeof useForm<ParentFormData>>;
   onRemove?: () => void;
   canRemove?: boolean;
 }
@@ -136,7 +136,7 @@ interface ParentListFormProps {
   parents: ParentFormData[];
   onAddParent: () => void;
   onRemoveParent: (index: number) => void;
-  getParentForm: (index: number) => UseFormReturnType<ParentFormData>;
+  getParentForm: (index: number) => ReturnType<typeof useForm<ParentFormData>>;
 }
 
 export const ParentListForm: React.FC<ParentListFormProps> = ({
