@@ -118,6 +118,7 @@ export const useFormStore = create<FormStore>()(
           },
         })),
       
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       getSharedData: (_formType) => {
         const { currentFamily } = get();
         if (!currentFamily) {
@@ -128,6 +129,7 @@ export const useFormStore = create<FormStore>()(
           };
         }
         
+        // TODO: Implement actual data mapping based on _formType
         return {
           student: currentFamily.students[0] || {},
           parents: currentFamily.parents || [],
@@ -156,6 +158,7 @@ export const useFormStore = create<FormStore>()(
         return form ? form.completed : false;
       },
       
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       getFormErrors: (_formType) => {
         // Implementation for form validation
         // This would return validation errors for the specified form

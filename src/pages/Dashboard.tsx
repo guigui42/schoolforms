@@ -60,12 +60,14 @@ export function Dashboard() {
             </Text>
 
             <Button
+              component={Link}
+              to="/family"
               leftSection={<IconUser size={16} />}
               variant="light"
               fullWidth
               mt="md"
             >
-              Ajouter un enfant
+              Gérer la famille
             </Button>
 
             <Button
