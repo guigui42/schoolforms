@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Final Coordinate System</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+    <div style="padding: 20px; font-family: Arial, sans-serif;">
+        <h1>Test Final Coordinate System</h1>
+        <p>This test validates our systematic approach to PDF field positioning.</p>
+        <button onclick="testCoordinateSystem()" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Test Coordinate System
+        </button>
+        <div id="status" style="margin-top: 20px; padding: 10px; border-radius: 5px;"></div>
+        <pre id="results" style="background: #f5f5f5; padding: 10px; margin-top: 20px; display: none;"></pre>
+    </div>
+
+    <script>
+        // Coordinate system implementation (simplified version)
+        const PAGE_DIMENSIONS = {
+            A4: { width: 595.28, height: 841.89 }
+        };
+
+        const STANDARD_MARGINS = {
+            left: 50,
+            right: 50,
+            top: 50,
+            bottom: 50
+        };
+
+        class FieldPositionCalculator {
+            constructor() {
+                this.pageWidth = PAGE_DIMENSIONS.A4.width;
+                this.pageHeight = PAGE_DIMENSIONS.A4.height;
+                this.margins = STANDARD_MARGINS;
+                
+                // Define sections based on ACTUAL form analysis
+                this.sections = {
+                    header: {
+                        yStart: this.pageHeight - this.margins.top,
+                        yEnd: this.pageHeight - 120,
+                        height: 70
+                    },
+                    childInfo: {
+                        yStart: this.pageHeight - 120,
+                        yEnd: this.pageHeight - 250,
+                        height: 130
+                    },
+                    addressInfo: {
+                        yStart: this.pageHeight - 250,
+                        yEnd: this.pageHeight - 350,
+                        height: 100
+                    },
+                    parentInfo: {
+                        yStart: this.pageHeight - 350,
+                        yEnd: this.pageHeight - 750,
+                        height: 400
+                    },
+                    footer: {
+                        yStart: this.pageHeight - 750,
+                        yEnd: this.margins.bottom,
+                        height: this.pageHeight - 750 - this.margins.bottom
+                    }
+                };
+                
+                // Define columns based on ACTUAL form layout
+                this.columns = {
+                    left: { x: 80, width: 120 },      // Labels column
+                    middle: { x: 200, width: 180 },   // Primary fields
+                    right: { x: 380, width: 160 }     // Secondary fields
+                };
+            }
+
+            calculateFieldPosition(section, column, row, rowHeight = 25) {
+                const sectionInfo = this.sections[section];
+                const columnInfo = this.columns[column];
+                
+                return {
+                    x: columnInfo.x,
+                    y: sectionInfo.yStart - (row * rowHeight),
+                    width: columnInfo.width,
+                    height: rowHeight
+                };
+            }
+
+            getSystemInfo() {
+                return {
+                    pageSize: {
+                        width: this.pageWidth,
+                        height: this.pageHeight,
+                        description: `${this.pageWidth} x ${this.pageHeight} points`
+                    },
+                    margins: this.margins,
+                    sections: this.sections,
+                    columns: this.columns
+                };
+            }
+        }
+
+        async function testCoordinateSystem() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            statusDiv.innerHTML = '<p style="color: blue;">Testing coordinate system...</p>';
+            
+            try {
+                // Load the PDF template
+                const templatePath = '/templates/Dossier d\'inscription ALSH - EDPP 2025-2026.pdf';
+                const response = await fetch(templatePath);
+                if (!response.ok) {
+                    throw new Error(`Failed to load template: ${response.statusText}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pages = pdfDoc.getPages();
+                const firstPage = pages[0];
+                const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+                
+                // Initialize our coordinate system
+                const calculator = new FieldPositionCalculator();
+                const systemInfo = calculator.getSystemInfo();
+                
+                console.log('System Info:', systemInfo);
+                
+                // Test field positions based on ACTUAL form structure
+                const testFields = [
+                    // Child Information Section (based on actual form)
+                    { section: 'childInfo', column: 'left', row: 0, label: 'Child LastName', color: [1, 0, 0] },
+                    { section: 'childInfo', column: 'middle', row: 0, label: 'Child FirstName', color: [1, 0, 0] },
+                    { section: 'childInfo', column: 'right', row: 0, label: 'Child BirthDate', color: [1, 0, 0] },
+                    { section: 'childInfo', column: 'left', row: 2, label: 'Child Nationality', color: [1, 0, 0] },
+                    { section: 'childInfo', column: 'middle', row: 2, label: 'Child Born At', color: [1, 0, 0] },
+                    { section: 'childInfo', column: 'right', row: 2, label: 'Child Sex', color: [1, 0, 0] },
+                    
+                    // Address Information Section
+                    { section: 'addressInfo', column: 'left', row: 0, label: 'Address Street', color: [0, 1, 0] },
+                    { section: 'addressInfo', column: 'left', row: 1, label: 'Postal Code', color: [0, 1, 0] },
+                    { section: 'addressInfo', column: 'middle', row: 1, label: 'City', color: [0, 1, 0] },
+                    
+                    // Parent Information Section - Father
+                    { section: 'parentInfo', column: 'left', row: 0, label: 'Father LastName', color: [0, 0, 1] },
+                    { section: 'parentInfo', column: 'middle', row: 0, label: 'Father FirstName', color: [0, 0, 1] },
+                    { section: 'parentInfo', column: 'right', row: 0, label: 'Father Phone', color: [0, 0, 1] },
+                    { section: 'parentInfo', column: 'left', row: 1, label: 'Father Email', color: [0, 0, 1] },
+                    
+                    // Parent Information Section - Mother
+                    { section: 'parentInfo', column: 'left', row: 8, label: 'Mother LastName', color: [1, 0, 1] },
+                    { section: 'parentInfo', column: 'middle', row: 8, label: 'Mother FirstName', color: [1, 0, 1] },
+                    { section: 'parentInfo', column: 'right', row: 8, label: 'Mother Phone', color: [1, 0, 1] },
+                    { section: 'parentInfo', column: 'left', row: 9, label: 'Mother Email', color: [1, 0, 1] },
+                    
+                    // Test some specific positions based on the visible form
+                    { section: 'childInfo', column: 'left', row: 0, label: 'NOM Field', color: [1, 0.5, 0] },
+                    { section: 'childInfo', column: 'middle', row: 0, label: 'PRENOM Field', color: [1, 0.5, 0] },
+                    { section: 'childInfo', column: 'right', row: 0, label: 'SEXE Field', color: [1, 0.5, 0] }
+                ];
+                
+                // Calculate and draw test positions
+                const calculatedPositions = [];
+                
+                testFields.forEach(field => {
+                    const position = calculator.calculateFieldPosition(
+                        field.section,
+                        field.column,
+                        field.row
+                    );
+                    
+                    calculatedPositions.push({
+                        ...field,
+                        position
+                    });
+                    
+                    // Draw field marker
+                    firstPage.drawCircle({
+                        x: position.x,
+                        y: position.y,
+                        size: 4,
+                        color: PDFLib.rgb(field.color[0], field.color[1], field.color[2]),
+                    });
+                    
+                    // Draw field label
+                    firstPage.drawText(`${field.label}`, {
+                        x: position.x,
+                        y: position.y - 15,
+                        size: 8,
+                        font,
+                        color: PDFLib.rgb(field.color[0], field.color[1], field.color[2]),
+                    });
+                    
+                    // Draw coordinates
+                    firstPage.drawText(`(${position.x.toFixed(0)},${position.y.toFixed(0)})`, {
+                        x: position.x,
+                        y: position.y - 25,
+                        size: 6,
+                        font,
+                        color: PDFLib.rgb(0.5, 0.5, 0.5),
+                    });
+                });
+                
+                // Draw section boundaries
+                Object.entries(systemInfo.sections).forEach(([sectionName, section]) => {
+                    // Draw section boundary
+                    firstPage.drawRectangle({
+                        x: systemInfo.margins.left,
+                        y: section.yEnd,
+                        width: systemInfo.pageSize.width - systemInfo.margins.left - systemInfo.margins.right,
+                        height: section.height,
+                        borderColor: PDFLib.rgb(0.8, 0.8, 0.8),
+                        borderWidth: 1,
+                    });
+                    
+                    // Draw section label
+                    firstPage.drawText(`${sectionName.toUpperCase()} SECTION`, {
+                        x: systemInfo.margins.left + 5,
+                        y: section.yStart - 10,
+                        size: 8,
+                        font,
+                        color: PDFLib.rgb(0.6, 0.6, 0.6),
+                    });
+                });
+                
+                // Draw column guides
+                Object.entries(systemInfo.columns).forEach(([columnName, column]) => {
+                    firstPage.drawLine({
+                        start: { x: column.x, y: systemInfo.margins.bottom },
+                        end: { x: column.x, y: systemInfo.pageSize.height - systemInfo.margins.top },
+                        thickness: 0.5,
+                        color: PDFLib.rgb(0.9, 0.9, 0.9),
+                    });
+                    
+                    // Column label
+                    firstPage.drawText(`${columnName.toUpperCase()}`, {
+                        x: column.x + 5,
+                        y: systemInfo.pageSize.height - systemInfo.margins.top - 30,
+                        size: 8,
+                        font,
+                        color: PDFLib.rgb(0.6, 0.6, 0.6),
+                    });
+                });
+                
+                // Generate and download PDF
+                const pdfBytes = await pdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'final-coordinate-system-test.pdf';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                statusDiv.innerHTML = '<p style="color: green;">✅ Coordinate system test completed successfully!</p>';
+                
+                // Display results
+                resultsDiv.style.display = 'block';
+                resultsDiv.textContent = JSON.stringify({
+                    systemInfo,
+                    calculatedPositions: calculatedPositions.map(pos => ({
+                        label: pos.label,
+                        section: pos.section,
+                        column: pos.column,
+                        row: pos.row,
+                        position: pos.position
+                    }))
+                }, null, 2);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

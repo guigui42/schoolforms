@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Coordinate System Analysis</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .analysis-section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .coordinate-info {
+            background: #e8f4f8;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .results {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        pre {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Coordinate System Analysis</h1>
+    
+    <div class="coordinate-info">
+        <h3>📐 PDF Coordinate System Fundamentals</h3>
+        <p><strong>PDF-lib uses a mathematical coordinate system:</strong></p>
+        <ul>
+            <li><strong>Origin (0,0)</strong>: Bottom-left corner of the page</li>
+            <li><strong>X-axis</strong>: Increases from left to right</li>
+            <li><strong>Y-axis</strong>: Increases from bottom to top (opposite of web/screen coordinates)</li>
+            <li><strong>Units</strong>: Points (1 inch = 72 points)</li>
+        </ul>
+        <p><strong>Key Insight:</strong> This is opposite to web coordinates where (0,0) is top-left and Y increases downward.</p>
+    </div>
+
+    <div class="analysis-section">
+        <h3>🔍 Analysis Tools</h3>
+        <button class="button" onclick="analyzeCoordinateSystem()">1. Analyze Coordinate System</button>
+        <button class="button" onclick="createFieldMappingGrid()">2. Create Field Mapping Grid</button>
+        <button class="button" onclick="testFormFieldPositions()">3. Test Form Field Positions</button>
+        <button class="button" onclick="generateCoordinateReference()">4. Generate Coordinate Reference</button>
+    </div>
+
+    <div id="results" class="results" style="display: none;">
+        <h3>📊 Analysis Results</h3>
+        <div id="analysis-content"></div>
+    </div>
+
+    <script>
+        let pdfDoc = null;
+        let firstPage = null;
+        let font = null;
+        let pageWidth = 0;
+        let pageHeight = 0;
+
+        // Load PDF template once
+        async function loadPDFTemplate() {
+            if (pdfDoc) return; // Already loaded
+
+            const templatePath = '/templates/Dossier d\'inscription ALSH - EDPP 2025-2026.pdf';
+            console.log('Loading template from:', templatePath);
+            
+            const response = await fetch(templatePath);
+            if (!response.ok) {
+                throw new Error(`Failed to load template: ${response.statusText} (${response.status})`);
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+            const pages = pdfDoc.getPages();
+            firstPage = pages[0];
+            font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+            pageWidth = firstPage.getWidth();
+            pageHeight = firstPage.getHeight();
+
+            console.log(`PDF loaded: ${pageWidth} x ${pageHeight} points`);
+            console.log(`PDF size in inches: ${(pageWidth/72).toFixed(2)} x ${(pageHeight/72).toFixed(2)}`);
+            console.log(`PDF size in mm: ${(pageWidth/72*25.4).toFixed(2)} x ${(pageHeight/72*25.4).toFixed(2)}`);
+        }
+
+        async function analyzeCoordinateSystem() {
+            try {
+                await loadPDFTemplate();
+                
+                // Create a new PDF document for analysis
+                const analysisDoc = await PDFLib.PDFDocument.load(await pdfDoc.save());
+                const analysisPage = analysisDoc.getPages()[0];
+                
+                // Draw coordinate system grid
+                const gridSpacing = 50; // 50 points = about 17.6mm
+                
+                // Draw grid lines
+                for (let x = 0; x <= pageWidth; x += gridSpacing) {
+                    analysisPage.drawLine({
+                        start: { x: x, y: 0 },
+                        end: { x: x, y: pageHeight },
+                        thickness: x % 100 === 0 ? 1 : 0.5,
+                        color: PDFLib.rgb(0.8, 0.8, 0.8),
+                    });
+                    
+                    if (x % 100 === 0) {
+                        analysisPage.drawText(`${x}`, {
+                            x: x + 2,
+                            y: pageHeight - 15,
+                            size: 8,
+                            font,
+                            color: PDFLib.rgb(0, 0, 0),
+                        });
+                    }
+                }
+                
+                for (let y = 0; y <= pageHeight; y += gridSpacing) {
+                    analysisPage.drawLine({
+                        start: { x: 0, y: y },
+                        end: { x: pageWidth, y: y },
+                        thickness: y % 100 === 0 ? 1 : 0.5,
+                        color: PDFLib.rgb(0.8, 0.8, 0.8),
+                    });
+                    
+                    if (y % 100 === 0) {
+                        analysisPage.drawText(`${y}`, {
+                            x: 5,
+                            y: y + 2,
+                            size: 8,
+                            font,
+                            color: PDFLib.rgb(0, 0, 0),
+                        });
+                    }
+                }
+                
+                // Mark important reference points
+                const referencePoints = [
+                    { name: 'ORIGIN (0,0)', x: 0, y: 0, color: [1, 0, 0] },
+                    { name: 'TOP-LEFT', x: 0, y: pageHeight, color: [1, 0, 0] },
+                    { name: 'TOP-RIGHT', x: pageWidth, y: pageHeight, color: [1, 0, 0] },
+                    { name: 'BOTTOM-RIGHT', x: pageWidth, y: 0, color: [1, 0, 0] },
+                    { name: 'CENTER', x: pageWidth/2, y: pageHeight/2, color: [0, 1, 0] },
+                    { name: 'QUARTER-POINTS', x: pageWidth/4, y: pageHeight/4, color: [0, 0, 1] },
+                    { name: 'THREE-QUARTER', x: 3*pageWidth/4, y: 3*pageHeight/4, color: [0, 0, 1] },
+                ];
+                
+                referencePoints.forEach(point => {
+                    analysisPage.drawCircle({
+                        x: point.x,
+                        y: point.y,
+                        size: 6,
+                        color: PDFLib.rgb(point.color[0], point.color[1], point.color[2]),
+                    });
+                    
+                    analysisPage.drawText(`${point.name} (${point.x.toFixed(0)},${point.y.toFixed(0)})`, {
+                        x: point.x + 10,
+                        y: point.y + 10,
+                        size: 8,
+                        font,
+                        color: PDFLib.rgb(point.color[0], point.color[1], point.color[2]),
+                    });
+                });
+                
+                // Download the analysis PDF
+                const pdfBytes = await analysisDoc.save();
+                downloadPDF(pdfBytes, 'coordinate-system-analysis.pdf');
+                
+                showResults(`
+                    <h4>✅ Coordinate System Analysis Complete</h4>
+                    <p><strong>Page Dimensions:</strong> ${pageWidth} x ${pageHeight} points</p>
+                    <p><strong>In Inches:</strong> ${(pageWidth/72).toFixed(2)} x ${(pageHeight/72).toFixed(2)}"</p>
+                    <p><strong>In Millimeters:</strong> ${(pageWidth/72*25.4).toFixed(2)} x ${(pageHeight/72*25.4).toFixed(2)} mm</p>
+                    <p><strong>Standard Size:</strong> ${determinePageSize(pageWidth, pageHeight)}</p>
+                    <p>Grid spacing: 50 points (≈17.6mm), with major lines every 100 points (≈35.3mm)</p>
+                `);
+                
+            } catch (error) {
+                showResults(`<p style="color: red;">❌ Error: ${error.message}</p>`);
+            }
+        }
+
+        async function createFieldMappingGrid() {
+            try {
+                await loadPDFTemplate();
+                
+                const analysisDoc = await PDFLib.PDFDocument.load(await pdfDoc.save());
+                const analysisPage = analysisDoc.getPages()[0];
+                
+                // Create a fine grid for precise field mapping
+                const fineGridSpacing = 25; // 25 points ≈ 8.8mm
+                
+                // Draw fine grid
+                for (let x = 0; x <= pageWidth; x += fineGridSpacing) {
+                    analysisPage.drawLine({
+                        start: { x: x, y: 0 },
+                        end: { x: x, y: pageHeight },
+                        thickness: x % 50 === 0 ? 0.5 : 0.25,
+                        color: PDFLib.rgb(0.9, 0.9, 0.9),
+                    });
+                }
+                
+                for (let y = 0; y <= pageHeight; y += fineGridSpacing) {
+                    analysisPage.drawLine({
+                        start: { x: 0, y: y },
+                        end: { x: pageWidth, y: y },
+                        thickness: y % 50 === 0 ? 0.5 : 0.25,
+                        color: PDFLib.rgb(0.9, 0.9, 0.9),
+                    });
+                }
+                
+                // Add coordinate labels every 50 points
+                for (let x = 0; x <= pageWidth; x += 50) {
+                    analysisPage.drawText(`${x}`, {
+                        x: x + 1,
+                        y: pageHeight - 12,
+                        size: 6,
+                        font,
+                        color: PDFLib.rgb(0.3, 0.3, 0.3),
+                    });
+                }
+                
+                for (let y = 0; y <= pageHeight; y += 50) {
+                    analysisPage.drawText(`${y}`, {
+                        x: 2,
+                        y: y + 1,
+                        size: 6,
+                        font,
+                        color: PDFLib.rgb(0.3, 0.3, 0.3),
+                    });
+                }
+                
+                // Download the field mapping grid
+                const pdfBytes = await analysisDoc.save();
+                downloadPDF(pdfBytes, 'field-mapping-grid.pdf');
+                
+                showResults(`
+                    <h4>✅ Field Mapping Grid Created</h4>
+                    <p>Fine grid with 25-point spacing for precise field positioning.</p>
+                    <p>Use this grid to identify exact coordinates for form fields.</p>
+                    <p><strong>Instructions:</strong></p>
+                    <ol>
+                        <li>Open the generated PDF alongside the original form</li>
+                        <li>Identify where each form field should be positioned</li>
+                        <li>Read the coordinates from the grid</li>
+                        <li>Remember: Y coordinates increase from bottom to top</li>
+                    </ol>
+                `);
+                
+            } catch (error) {
+                showResults(`<p style="color: red;">❌ Error: ${error.message}</p>`);
+            }
+        }
+
+        async function testFormFieldPositions() {
+            try {
+                await loadPDFTemplate();
+                
+                const analysisDoc = await PDFLib.PDFDocument.load(await pdfDoc.save());
+                const analysisPage = analysisDoc.getPages()[0];
+                
+                // Based on typical French form layouts, let's test strategic positions
+                // We'll work from the assumption that the form follows standard French document layout
+                
+                // Calculate typical margins and field positions
+                const leftMargin = 50;  // ~17.6mm
+                const rightMargin = 50;
+                const topMargin = 50;
+                const bottomMargin = 50;
+                
+                const workingWidth = pageWidth - leftMargin - rightMargin;
+                const workingHeight = pageHeight - topMargin - bottomMargin;
+                
+                // Test positions based on typical form sections
+                const testPositions = [
+                    // Header section (top of page)
+                    { name: 'Header-Left', x: leftMargin + 20, y: pageHeight - 80, color: [1, 0, 0] },
+                    { name: 'Header-Center', x: pageWidth/2, y: pageHeight - 80, color: [1, 0, 0] },
+                    { name: 'Header-Right', x: pageWidth - rightMargin - 20, y: pageHeight - 80, color: [1, 0, 0] },
+                    
+                    // Child information section (typically near top)
+                    { name: 'Child-Info-Start', x: leftMargin + 20, y: pageHeight - 150, color: [0, 1, 0] },
+                    { name: 'Child-Name-Area', x: leftMargin + 150, y: pageHeight - 150, color: [0, 1, 0] },
+                    { name: 'Child-Birth-Area', x: leftMargin + 300, y: pageHeight - 150, color: [0, 1, 0] },
+                    
+                    // Address section
+                    { name: 'Address-Start', x: leftMargin + 20, y: pageHeight - 250, color: [0, 0, 1] },
+                    { name: 'Address-Field', x: leftMargin + 100, y: pageHeight - 250, color: [0, 0, 1] },
+                    
+                    // Parent information sections
+                    { name: 'Parent1-Start', x: leftMargin + 20, y: pageHeight - 350, color: [1, 0, 1] },
+                    { name: 'Parent1-Name', x: leftMargin + 150, y: pageHeight - 350, color: [1, 0, 1] },
+                    { name: 'Parent1-Contact', x: leftMargin + 300, y: pageHeight - 350, color: [1, 0, 1] },
+                    
+                    { name: 'Parent2-Start', x: leftMargin + 20, y: pageHeight - 450, color: [1, 0.5, 0] },
+                    { name: 'Parent2-Name', x: leftMargin + 150, y: pageHeight - 450, color: [1, 0.5, 0] },
+                    { name: 'Parent2-Contact', x: leftMargin + 300, y: pageHeight - 450, color: [1, 0.5, 0] },
+                    
+                    // Emergency contacts
+                    { name: 'Emergency-Start', x: leftMargin + 20, y: pageHeight - 550, color: [0.5, 0, 1] },
+                    { name: 'Emergency-Name', x: leftMargin + 150, y: pageHeight - 550, color: [0.5, 0, 1] },
+                    
+                    // Footer/signature area
+                    { name: 'Footer-Left', x: leftMargin + 20, y: bottomMargin + 50, color: [0, 0, 0] },
+                    { name: 'Footer-Right', x: pageWidth - rightMargin - 100, y: bottomMargin + 50, color: [0, 0, 0] },
+                ];
+                
+                testPositions.forEach(pos => {
+                    // Draw position marker
+                    analysisPage.drawCircle({
+                        x: pos.x,
+                        y: pos.y,
+                        size: 4,
+                        color: PDFLib.rgb(pos.color[0], pos.color[1], pos.color[2]),
+                    });
+                    
+                    // Draw position label
+                    analysisPage.drawText(`${pos.name} (${pos.x},${pos.y})`, {
+                        x: pos.x + 8,
+                        y: pos.y + 8,
+                        size: 7,
+                        font,
+                        color: PDFLib.rgb(pos.color[0], pos.color[1], pos.color[2]),
+                    });
+                    
+                    // Draw sample text at position
+                    analysisPage.drawText('Sample Text', {
+                        x: pos.x,
+                        y: pos.y - 15,
+                        size: 10,
+                        font,
+                        color: PDFLib.rgb(pos.color[0], pos.color[1], pos.color[2]),
+                    });
+                });
+                
+                // Download the test positions PDF
+                const pdfBytes = await analysisDoc.save();
+                downloadPDF(pdfBytes, 'form-field-positions-test.pdf');
+                
+                showResults(`
+                    <h4>✅ Form Field Position Test Complete</h4>
+                    <p><strong>Working Area:</strong> ${workingWidth} x ${workingHeight} points</p>
+                    <p><strong>Margins:</strong> ${leftMargin} points (${(leftMargin/72*25.4).toFixed(1)}mm) on each side</p>
+                    <p>Test positions marked for typical form sections.</p>
+                    <p><strong>Next Steps:</strong></p>
+                    <ol>
+                        <li>Compare test positions with actual form fields</li>
+                        <li>Adjust coordinates based on visual alignment</li>
+                        <li>Note the pattern for future forms</li>
+                    </ol>
+                `);
+                
+            } catch (error) {
+                showResults(`<p style="color: red;">❌ Error: ${error.message}</p>`);
+            }
+        }
+
+        async function generateCoordinateReference() {
+            try {
+                await loadPDFTemplate();
+                
+                const coordinateSystem = {
+                    pageSize: {
+                        width: pageWidth,
+                        height: pageHeight,
+                        widthInches: (pageWidth/72).toFixed(2),
+                        heightInches: (pageHeight/72).toFixed(2),
+                        widthMm: (pageWidth/72*25.4).toFixed(2),
+                        heightMm: (pageHeight/72*25.4).toFixed(2),
+                        standardSize: determinePageSize(pageWidth, pageHeight)
+                    },
+                    coordinateSystem: {
+                        origin: "Bottom-left corner (0,0)",
+                        xAxis: "Increases left to right",
+                        yAxis: "Increases bottom to top",
+                        units: "Points (72 points = 1 inch = 25.4mm)"
+                    },
+                    margins: {
+                        recommended: {
+                            left: 50,
+                            right: 50,
+                            top: 50,
+                            bottom: 50
+                        },
+                        workingArea: {
+                            x: 50,
+                            y: 50,
+                            width: pageWidth - 100,
+                            height: pageHeight - 100
+                        }
+                    },
+                    conversionFormulas: {
+                        pointsToInches: "points / 72",
+                        pointsToMm: "points / 72 * 25.4",
+                        inchesToPoints: "inches * 72",
+                        mmToPoints: "mm / 25.4 * 72",
+                        webToPDF: "y_pdf = pageHeight - y_web",
+                        pdfToWeb: "y_web = pageHeight - y_pdf"
+                    }
+                };
+                
+                showResults(`
+                    <h4>📐 PDF Coordinate System Reference</h4>
+                    <pre>${JSON.stringify(coordinateSystem, null, 2)}</pre>
+                    
+                    <h4>🎯 Field Positioning Strategy</h4>
+                    <p><strong>1. Establish Base Coordinates:</strong></p>
+                    <ul>
+                        <li>Use consistent margins (50 points recommended)</li>
+                        <li>Define section start positions (header, child info, parents, etc.)</li>
+                        <li>Use relative positioning within sections</li>
+                    </ul>
+                    
+                    <p><strong>2. Field Calculation Formula:</strong></p>
+                    <pre>
+// For any field position:
+const fieldX = leftMargin + columnOffset + fieldSpecificOffset;
+const fieldY = pageHeight - topMargin - sectionOffset - fieldSpecificOffset;
+
+// Example for child name field:
+const childNameX = 50 + 0 + 20;        // Left margin + column + field offset
+const childNameY = ${pageHeight} - 50 - 100 - 0;  // Page height - top margin - section - field offset
+                    </pre>
+                    
+                    <p><strong>3. Systematic Approach:</strong></p>
+                    <ol>
+                        <li>Map each form section to Y ranges</li>
+                        <li>Define standard X positions for labels and fields</li>
+                        <li>Use consistent spacing between fields</li>
+                        <li>Test with grid overlay to verify positioning</li>
+                    </ol>
+                `);
+                
+            } catch (error) {
+                showResults(`<p style="color: red;">❌ Error: ${error.message}</p>`);
+            }
+        }
+
+        function determinePageSize(width, height) {
+            // Convert to mm for comparison
+            const widthMm = width / 72 * 25.4;
+            const heightMm = height / 72 * 25.4;
+            
+            // Common page sizes in mm
+            if (Math.abs(widthMm - 210) < 5 && Math.abs(heightMm - 297) < 5) return "A4";
+            if (Math.abs(widthMm - 216) < 5 && Math.abs(heightMm - 279) < 5) return "US Letter";
+            if (Math.abs(widthMm - 216) < 5 && Math.abs(heightMm - 356) < 5) return "US Legal";
+            
+            return `Custom (${widthMm.toFixed(1)} x ${heightMm.toFixed(1)} mm)`;
+        }
+
+        function downloadPDF(pdfBytes, filename) {
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function showResults(content) {
+            const resultsDiv = document.getElementById('results');
+            const contentDiv = document.getElementById('analysis-content');
+            contentDiv.innerHTML = content;
+            resultsDiv.style.display = 'block';
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
