@@ -289,8 +289,9 @@ export function createFieldMappingsFromFamily(family: Family): PDFFieldMapping {
 
 /**
  * Create coordinate-based mappings for ALSH EDPP 2025-2026 form
- * These coordinates are based on the actual PDF form structure
+ * These coordinates are calibrated to match the actual PDF form fields
  * PDF coordinates: (0,0) is bottom-left corner, Y increases upward
+ * Coordinates analyzed from the actual form layout
  */
 export function createCoordinateMappingsFromFamily(family: Family): PDFFieldMapping {
   const address = family.address;
@@ -298,224 +299,208 @@ export function createCoordinateMappingsFromFamily(family: Family): PDFFieldMapp
   const child = family.students?.[0];
   
   return {
-    // SECTION 1: INFORMATIONS ENFANT (Child Information)
+    // SECTION 1: INFORMATIONS ENFANT (Child Information) - Top section
     'enfant_nom': {
       value: child?.lastName || mainParent?.lastName || '',
-      x: 150,
-      y: 720, // Top section - child last name
+      x: 235,
+      y: 765, // NOM field in the top section
       fontSize: 10,
     },
     'enfant_prenom': {
       value: child?.firstName || '',
-      x: 350,
-      y: 720, // Top section - child first name
+      x: 425,
+      y: 765, // PRENOM field in the top section
       fontSize: 10,
     },
     'enfant_date_naissance': {
       value: child?.birthDate ? new Date(child.birthDate).toLocaleDateString('fr-FR') : '',
-      x: 450,
-      y: 720, // Birth date
+      x: 175,
+      y: 740, // Né(e) le ... field
       fontSize: 10,
     },
-    'enfant_sexe': {
-      value: '', // Gender not in schema, leave empty
-      x: 150,
-      y: 700, // Gender field
-      fontSize: 10,
-    },
-    'enfant_classe': {
-      value: child?.grade || '',
-      x: 250,
-      y: 700, // School grade/class
-      fontSize: 10,
-    },
-    'enfant_ecole': {
-      value: child?.school || '',
-      x: 350,
-      y: 700, // School name
+    'enfant_nationalite': {
+      value: 'Française',
+      x: 505,
+      y: 740, // Nationalité field
       fontSize: 10,
     },
 
-    // SECTION 2: ADRESSE FAMILIALE (Family Address)
+    // SECTION 2: ADRESSE - in the "Renseignement d'état civil" section
     'adresse_rue': {
       value: address.street,
-      x: 150,
-      y: 650, // Street address
+      x: 115,
+      y: 700, // ADRESSE field
+      fontSize: 9,
+    },
+    'adresse_code_postal': {
+      value: address.postalCode,
+      x: 145,
+      y: 680, // Code postal field
       fontSize: 10,
     },
     'adresse_ville': {
       value: address.city,
-      x: 150,
-      y: 630, // City
-      fontSize: 10,
-    },
-    'adresse_code_postal': {
-      value: address.postalCode,
-      x: 350,
-      y: 630, // Postal code
-      fontSize: 10,
-    },
-    'adresse_pays': {
-      value: address.country,
-      x: 450,
-      y: 630, // Country
+      x: 355,
+      y: 680, // Ville field
       fontSize: 10,
     },
 
-    // SECTION 3: RESPONSABLE LEGAL 1 (Parent/Guardian 1)
-    'parent1_civilite': {
-      value: mainParent?.type === 'mother' ? 'Mme' : mainParent?.type === 'father' ? 'M.' : 'M./Mme',
-      x: 150,
-      y: 580, // Title (Mr/Mrs)
+    // SECTION 3: PÈRE (Father section) - around y=580-500
+    'pere_nom': {
+      value: mainParent?.type === 'father' ? mainParent?.lastName || '' : '',
+      x: 235,
+      y: 580, // Nom du père field
       fontSize: 10,
     },
-    'parent1_nom': {
+    'pere_prenom': {
+      value: mainParent?.type === 'father' ? mainParent?.firstName || '' : '',
+      x: 425,
+      y: 580, // Prénom du père field  
+      fontSize: 10,
+    },
+    'pere_adresse': {
+      value: mainParent?.type === 'father' ? address.street : '',
+      x: 115,
+      y: 555, // ADRESSE du père
+      fontSize: 9,
+    },
+    'pere_profession': {
+      value: mainParent?.type === 'father' ? mainParent?.profession || '' : '',
+      x: 165,
+      y: 530, // Profession du père
+      fontSize: 9,
+    },
+    'pere_employeur': {
+      value: mainParent?.type === 'father' ? mainParent?.workAddress?.street || '' : '',
+      x: 405,
+      y: 530, // Employeur du père
+      fontSize: 9,
+    },
+    'pere_mobile': {
+      value: mainParent?.type === 'father' ? mainParent?.phone || '' : '',
+      x: 165,
+      y: 510, // Mobile du père
+      fontSize: 9,
+    },
+    'pere_mail': {
+      value: mainParent?.type === 'father' ? mainParent?.email || '' : '',
+      x: 355,
+      y: 510, // Mail du père
+      fontSize: 9,
+    },
+
+    // SECTION 4: MÈRE (Mother section) - around y=450-380
+    'mere_nom_jeune_fille': {
+      value: mainParent?.type === 'mother' ? mainParent?.lastName || '' : '',
+      x: 355,
+      y: 455, // Nom de jeune fille de la mère
+      fontSize: 10,
+    },
+    'mere_nom_marital': {
+      value: mainParent?.type === 'mother' ? mainParent?.lastName || '' : '',
+      x: 505,
+      y: 455, // Nom marital
+      fontSize: 10,
+    },
+    'mere_prenom': {
+      value: mainParent?.type === 'mother' ? mainParent?.firstName || '' : '',
+      x: 205,
+      y: 435, // Prénom de la mère
+      fontSize: 10,
+    },
+    'mere_nationalite': {
+      value: mainParent?.type === 'mother' ? 'Française' : '',
+      x: 425,
+      y: 435, // Nationalité de la mère
+      fontSize: 10,
+    },
+    'mere_adresse': {
+      value: mainParent?.type === 'mother' ? address.street : '',
+      x: 115,
+      y: 410, // ADRESSE de la mère
+      fontSize: 9,
+    },
+    'mere_profession': {
+      value: mainParent?.type === 'mother' ? mainParent?.profession || '' : '',
+      x: 165,
+      y: 385, // Profession de la mère
+      fontSize: 9,
+    },
+    'mere_employeur': {
+      value: mainParent?.type === 'mother' ? mainParent?.workAddress?.street || '' : '',
+      x: 405,
+      y: 385, // Employeur de la mère
+      fontSize: 9,
+    },
+    'mere_mobile': {
+      value: mainParent?.type === 'mother' ? mainParent?.phone || '' : '',
+      x: 165,
+      y: 365, // Mobile de la mère
+      fontSize: 9,
+    },
+    'mere_mail': {
+      value: mainParent?.type === 'mother' ? mainParent?.email || '' : '',
+      x: 355,
+      y: 365, // Mail de la mère
+      fontSize: 9,
+    },
+
+    // Generic mappings for easier access
+    'nom': {
       value: mainParent?.lastName || '',
-      x: 200,
-      y: 580, // Parent last name
+      x: mainParent?.type === 'father' ? 235 : 355,
+      y: mainParent?.type === 'father' ? 580 : 455,
       fontSize: 10,
     },
-    'parent1_prenom': {
+    'prenom': {
       value: mainParent?.firstName || '',
-      x: 350,
-      y: 580, // Parent first name
+      x: mainParent?.type === 'father' ? 425 : 205,
+      y: mainParent?.type === 'father' ? 580 : 435,
       fontSize: 10,
     },
-    'parent1_telephone': {
-      value: mainParent?.phone || '',
-      x: 150,
-      y: 560, // Phone number
-      fontSize: 10,
-    },
-    'parent1_email': {
+    'email': {
       value: mainParent?.email || '',
-      x: 300,
-      y: 560, // Email address
-      fontSize: 10,
+      x: 355,
+      y: mainParent?.type === 'father' ? 510 : 365,
+      fontSize: 9,
     },
-    'parent1_profession': {
-      value: mainParent?.profession || '',
-      x: 150,
-      y: 540, // Profession
-      fontSize: 10,
-    },
-    'parent1_employeur': {
-      value: mainParent?.workAddress?.street || '',
-      x: 350,
-      y: 540, // Employer/work address
-      fontSize: 10,
-    },
-    'parent1_tel_travail': {
-      value: mainParent?.workPhone || '',
-      x: 150,
-      y: 520, // Work phone
-      fontSize: 10,
-    },
-
-    // SECTION 4: PERSONNE A CONTACTER EN CAS D'URGENCE (Emergency Contact)
-    'urgence_nom': {
-      value: family.emergencyContacts?.[0]?.lastName || mainParent?.lastName || '',
-      x: 150,
-      y: 460, // Emergency contact name
-      fontSize: 10,
-    },
-    'urgence_prenom': {
-      value: family.emergencyContacts?.[0]?.firstName || mainParent?.firstName || '',
-      x: 300,
-      y: 460, // Emergency contact first name
-      fontSize: 10,
-    },
-    'urgence_telephone': {
-      value: family.emergencyContacts?.[0]?.phone || mainParent?.phone || '',
-      x: 450,
-      y: 460, // Emergency phone
-      fontSize: 10,
-    },
-    'urgence_lien': {
-      value: family.emergencyContacts?.[0]?.relationship || 'Parent',
-      x: 150,
-      y: 440, // Relationship to child
-      fontSize: 10,
-    },
-
-    // SECTION 5: PERSONNE AUTORISEE A RECUPERER L'ENFANT (Authorized pickup persons)
-    'autorise1_nom': {
-      value: mainParent?.lastName || '',
-      x: 150,
-      y: 380, // Authorized person 1
-      fontSize: 10,
-    },
-    'autorise1_prenom': {
-      value: mainParent?.firstName || '',
-      x: 300,
-      y: 380,
-      fontSize: 10,
-    },
-    'autorise1_telephone': {
+    'telephone': {
       value: mainParent?.phone || '',
-      x: 450,
-      y: 380,
-      fontSize: 10,
-    },
-
-    // SECTION 6: INFORMATIONS MEDICALES (Medical Information)
-    'medecin_nom': {
-      value: '', // Doctor info not in schema
-      x: 150,
-      y: 320, // Doctor name
-      fontSize: 10,
-    },
-    'medecin_telephone': {
-      value: '', // Doctor phone not in schema
-      x: 350,
-      y: 320, // Doctor phone
-      fontSize: 10,
-    },
-    'allergies': {
-      value: child?.medicalInfo?.allergies?.join(', ') || '',
-      x: 150,
-      y: 300, // Allergies
-      fontSize: 9,
-    },
-    'medicaments': {
-      value: child?.medicalInfo?.medications?.join(', ') || '',
-      x: 150,
-      y: 280, // Medications
-      fontSize: 9,
-    },
-    'regime_alimentaire': {
-      value: child?.medicalInfo?.notes || '',
-      x: 150,
-      y: 260, // Dietary restrictions (using notes field)
+      x: 165,
+      y: mainParent?.type === 'father' ? 510 : 365,
       fontSize: 9,
     },
 
-    // SECTION 7: SIGNATURE ET DATE
-    'date_signature': {
-      value: new Date().toLocaleDateString('fr-FR'),
-      x: 400,
-      y: 100, // Signature date
+    // Alternative field names for backward compatibility
+    'child_name': {
+      value: child?.firstName || '',
+      x: 425,
+      y: 765,
       fontSize: 10,
     },
-    'lieu_signature': {
+    'nom_enfant': {
+      value: child?.lastName || mainParent?.lastName || '',
+      x: 235,
+      y: 765,
+      fontSize: 10,
+    },
+    'adresse': {
+      value: address.street,
+      x: 115,
+      y: 700,
+      fontSize: 9,
+    },
+    'ville': {
       value: address.city,
-      x: 300,
-      y: 100, // Place of signature
+      x: 355,
+      y: 680,
       fontSize: 10,
     },
-
-    // Additional fields that might be present
-    'etablissement': {
-      value: 'ALSH - EDPP',
-      x: 300,
-      y: 780, // Institution name
-      fontSize: 12,
-    },
-    'annee_scolaire': {
-      value: '2025-2026',
-      x: 450,
-      y: 780, // School year
-      fontSize: 12,
+    'code_postal': {
+      value: address.postalCode,
+      x: 145,
+      y: 680,
+      fontSize: 10,
     },
   };
 }

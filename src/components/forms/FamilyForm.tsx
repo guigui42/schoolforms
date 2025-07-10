@@ -13,7 +13,7 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconInfoCircle, IconDownload } from '@tabler/icons-react';
+import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,8 +21,8 @@ import { AddressForm } from './AddressForm';
 import { ParentForm } from './ParentForm';
 import { StudentForm } from './StudentForm';
 import { EmergencyContactForm } from './EmergencyContactForm';
+import { TemplateSelect } from '../pdf/TemplateSelect';
 import { useFormStore } from '../../stores/formStore';
-import { PDFGenerator, createFieldMappingsFromFamily, createCoordinateMappingsFromFamily } from '../../utils/pdf';
 
 import type { AddressFormData, ParentFormData, EmergencyContactFormData } from '../../schemas/parent';
 import type { StudentFormData } from '../../schemas/student';
@@ -31,7 +31,6 @@ import type { Family } from '../../types/forms';
 export const FamilyForm: React.FC = () => {
   const [active, setActive] = useState(0);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   
   // Get store functions
   const { 
@@ -231,86 +230,9 @@ export const FamilyForm: React.FC = () => {
     }
   };
 
-  const handleGeneratePDF = async () => {
-    if (!addressForm.isValid() || !parentForm.isValid() || !studentForm.isValid() || !emergencyContactForm.isValid()) {
-      notifications.show({
-        title: 'Erreur',
-        message: 'Veuillez remplir tous les champs requis avant de générer le PDF',
-        color: 'red',
-      });
-      return;
-    }
-
-    setIsGeneratingPDF(true);
-    
-    try {
-      // Save data first
-      saveToStore();
-      
-      // Create a temporary family object with current data
-      const tempFamily = {
-        id: currentFamily?.id || uuidv4(),
-        address: addressForm.values,
-        students: [studentForm.values],
-        parents: [parentForm.values],
-        emergencyContacts: [emergencyContactForm.values],
-        preferences: currentFamily?.preferences || {
-          notifications: true,
-          language: 'fr',
-          theme: 'auto',
-          autoSave: true,
-        },
-        createdAt: currentFamily?.createdAt || new Date(),
-        updatedAt: new Date(),
-      };
-
-      const pdfGenerator = new PDFGenerator();
-      
-      // Use the specific ALSH EDPP template
-      const templateName = 'Dossier d\'inscription ALSH - EDPP 2025-2026.pdf';
-      
-      try {
-        console.log(`Loading specific template: ${templateName}`);
-        await pdfGenerator.loadTemplate(templateName);
-        console.log(`Successfully loaded template: ${templateName}`);
-      } catch (error) {
-        console.log(`Failed to load template ${templateName}:`, error);
-        throw new Error(`Unable to load the ALSH EDPP template: ${templateName}`);
-      }
-      
-      // Get all form fields for debugging
-      const formFields = pdfGenerator.getFormFields();
-      console.log('Available PDF form fields:', formFields);
-      
-      // Try to fill form fields first
-      const fieldMappings = createFieldMappingsFromFamily(tempFamily);
-      pdfGenerator.fillFormFields(fieldMappings);
-      
-      // Also try coordinate-based mapping
-      const coordinateMappings = createCoordinateMappingsFromFamily(tempFamily);
-      await pdfGenerator.addTextAtCoordinates(coordinateMappings);
-      
-      // Generate and download the PDF
-      const filename = `formulaire-${tempFamily.address.city}-${new Date().toISOString().split('T')[0]}.pdf`;
-      await pdfGenerator.downloadPDF(filename);
-      
-      notifications.show({
-        title: 'PDF généré',
-        message: `Le formulaire ALSH EDPP a été généré avec succès`,
-        color: 'green',
-        icon: <IconDownload size={16} />,
-      });
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      notifications.show({
-        title: 'Erreur',
-        message: 'Impossible de générer le PDF. Veuillez réessayer.',
-        color: 'red',
-      });
-    } finally {
-      setIsGeneratingPDF(false);
-    }
+  const handlePDFGenerated = (templateId: string) => {
+    console.log(`PDF generated for template: ${templateId}`);
+    // Optionally handle post-generation actions
   };
 
   const progress = ((active + 1) / 5) * 100;
@@ -399,15 +321,31 @@ export const FamilyForm: React.FC = () => {
                   Enregistrer les informations familiales
                 </Button>
                 
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  onClick={handleGeneratePDF}
-                  loading={isGeneratingPDF}
-                  leftSection={<IconDownload size={16} />}
-                >
-                  Générer PDF ALSH EDPP complet
-                </Button>
+                {/* Create family object for PDF generation */}
+                {(() => {
+                  const tempFamily = {
+                    id: currentFamily?.id || uuidv4(),
+                    address: addressForm.values,
+                    students: [studentForm.values],
+                    parents: [parentForm.values],
+                    emergencyContacts: [emergencyContactForm.values],
+                    preferences: currentFamily?.preferences || {
+                      notifications: true,
+                      language: 'fr',
+                      theme: 'auto',
+                      autoSave: true,
+                    },
+                    createdAt: currentFamily?.createdAt || new Date(),
+                    updatedAt: new Date(),
+                  };
+                  
+                  return (
+                    <TemplateSelect 
+                      family={tempFamily} 
+                      onPDFGenerated={handlePDFGenerated}
+                    />
+                  );
+                })()}
               </Stack>
             </Stepper.Completed>
           </Stepper>
