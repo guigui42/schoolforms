@@ -6,7 +6,7 @@ import { ModalsProvider } from '@mantine/modals';
 import { DatesProvider } from '@mantine/dates';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
-import { theme } from './theme';
+import { theme } from './theme.ts';
 import 'dayjs/locale/fr';
 
 // Import Mantine styles
