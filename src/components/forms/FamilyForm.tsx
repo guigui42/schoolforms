@@ -30,7 +30,6 @@ import type { Family } from '../../types/forms';
 
 export const FamilyForm: React.FC = () => {
   const [active, setActive] = useState(0);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
   
   // Get store functions
   const { 
@@ -149,9 +148,7 @@ export const FamilyForm: React.FC = () => {
   useEffect(() => {
     const handleFormChange = () => {
       if (addressForm.isValid() || parentForm.isValid() || studentForm.isValid() || emergencyContactForm.isValid()) {
-        setIsAutoSaving(true);
         saveToStore();
-        setTimeout(() => setIsAutoSaving(false), 500);
       }
     };
 
@@ -248,11 +245,6 @@ export const FamilyForm: React.FC = () => {
             Remplissez les informations de votre famille une seule fois. 
             Elles seront automatiquement utilisées dans tous les formulaires scolaires.
           </Text>
-          {isAutoSaving && (
-            <Text c="blue" size="sm" mt="xs">
-              💾 Sauvegarde automatique en cours...
-            </Text>
-          )}
         </div>
 
         <Card shadow="sm" padding="lg" radius="md" withBorder>
