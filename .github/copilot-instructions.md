@@ -6,7 +6,8 @@ A React-based web application that allows French parents to fill out school enro
 
 **Key Problem Solved**: French school forms contain repetitive information (child details, parent information, addresses, etc.). This app allows parents to enter data once and automatically populates all forms, eliminating redundant data entry.
 
-Expected PDFs output are located in the `/public/templates/` directory, which contains original PDF templates for PERISCOLAIRE, EDPP, and other school forms.
+Expected PDFs output are located in the `../public/templates/` directory, which contains original PDF templates for PERISCOLAIRE, EDPP, and other school forms.
+PDF Coordinate System Analysis : `../docs/pdf-coordinates.md`
 
 ## Technology Stack
 
