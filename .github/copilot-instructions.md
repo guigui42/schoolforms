@@ -72,7 +72,7 @@ Expected PDFs output are located in the `/public/templates/` directory, which co
 ## Project Structure
 
 ```
-schoolforms-app/
+/
 ├── public/
 │   ├── templates/          # Original PDF templates
 │   ├── icons/             # App icons for PWA
