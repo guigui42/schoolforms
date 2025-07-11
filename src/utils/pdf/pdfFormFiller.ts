@@ -18,6 +18,25 @@ export { extractTemplateData } from './templateMappings';
 export class PDFFormFiller {
   private pdfDoc: PDFDocument | null = null;
   private form: PDFForm | null = null;
+  private debugMode: boolean = false;
+  private silentMode: boolean = false;
+
+  constructor(options: { debug?: boolean; silent?: boolean } = {}) {
+    this.debugMode = options.debug || false;
+    this.silentMode = options.silent || false;
+  }
+
+  private log(message: string, ...args: unknown[]) {
+    if (this.debugMode) {
+      console.log(message, ...args);
+    }
+  }
+
+  private warn(message: string, ...args: unknown[]) {
+    if (!this.silentMode) {
+      console.warn(message, ...args);
+    }
+  }
 
   /**
    * Load a PDF template from the public/templates directory
@@ -26,16 +45,14 @@ export class PDFFormFiller {
     const config = getTemplateConfig(templateId);
     if (!config) {
       throw new Error(`Template "${templateId}" not found`);
-    }
+    }    try {
+      this.log(`Loading template: ${templateId} from ${config.templatePath}`);
 
-    try {
-      console.log(`Loading template: ${templateId} from ${config.templatePath}`);
-      
       // Fetch the PDF template
       const response = await fetch(config.templatePath);
-      console.log(`Fetch response status: ${response.status} ${response.statusText}`);
-      console.log(`Content-Type: ${response.headers.get('content-type')}`);
-      console.log(`Content-Length: ${response.headers.get('content-length')}`);
+      this.log(`Fetch response status: ${response.status} ${response.statusText}`);
+      this.log(`Content-Type: ${response.headers.get('content-type')}`);
+      this.log(`Content-Length: ${response.headers.get('content-length')}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -110,7 +127,8 @@ export class PDFFormFiller {
 
     const data = extractTemplateData(templateId, family);
 
-    console.log('Filling form with data:', data);
+    // console.log('Filling form with data:', data);
+    console.log(`📝 Filling "${templateId}" template with ${Object.keys(data).length} data fields...`);
 
     // Fill each mapped field based on the template configuration
     for (const fieldMapping of config.fields) {
@@ -126,17 +144,17 @@ export class PDFFormFiller {
             // Text field
             const textField = field as PDFTextField;
             textField.setText(String(value || ''));
-            console.log(`Set text field "${pdfFieldName}" = "${value}"`);
+            // console.log(`Set text field "${pdfFieldName}" = "${value}"`);
             
           } else if ('check' in field) {
             // Checkbox field
             const checkboxField = field as PDFCheckBox;
             if (value === true) {
               checkboxField.check();
-              console.log(`Checked checkbox "${pdfFieldName}"`);
+              // console.log(`Checked checkbox "${pdfFieldName}"`);
             } else {
               checkboxField.uncheck();
-              console.log(`Unchecked checkbox "${pdfFieldName}"`);
+              // console.log(`Unchecked checkbox "${pdfFieldName}"`);
             }
             
           } else if ('getOptions' in field && 'select' in field) {
@@ -144,20 +162,30 @@ export class PDFFormFiller {
             const selectableField = field as PDFRadioGroup | PDFDropdown;
             if (value === true && selectableField.getOptions().length > 0) {
               selectableField.select(selectableField.getOptions()[0]);
-              console.log(`Selected field "${pdfFieldName}"`);
+              // console.log(`Selected field "${pdfFieldName}"`);
             } else if (typeof value === 'string' && selectableField.getOptions().includes(value)) {
               selectableField.select(value);
-              console.log(`Selected field "${pdfFieldName}" = "${value}"`);
+              // console.log(`Selected field "${pdfFieldName}" = "${value}"`);
             }
           }
         } else {
-          console.warn(`Field "${pdfFieldName}" not found in PDF`);
+          this.warn(`⚠️  Field "${pdfFieldName}" not found in PDF template (skipping)`);
         }
         
       } catch (error) {
-        console.error(`Error filling field "${pdfFieldName}":`, error);
+        // Gracefully handle missing fields - this is common during development
+        if (error instanceof Error && error.message.includes('no form field with the name')) {
+          this.warn(`⚠️  Field "${pdfFieldName}" not found in PDF template (skipping)`);
+        } else {
+          this.warn(`⚠️  Could not fill field "${pdfFieldName}":`, error instanceof Error ? error.message : error);
+        }
+        // Continue processing other fields instead of failing
       }
     }
+    
+    // Summary log
+    const totalFields = config.fields.length;
+    console.log(`✅ Form filling completed for "${templateId}" (${totalFields} fields processed)`);
   }
 
   /**

@@ -15,11 +15,26 @@ interface TemplateSelectProps {
   onPDFGenerated?: (templateId: string) => void;
 }
 
+// Global cache to prevent multiple accessibility checks across components
+let globalTemplateStatus: Record<string, {
+  accessible: boolean;
+  isPDF: boolean;
+  size?: number;
+  error?: string;
+}> | null = null;
+let isGloballyChecking = false;
+
+// Utility function to reset cache (useful for development)
+export const resetTemplateCache = () => {
+  globalTemplateStatus = null;
+  isGloballyChecking = false;
+  console.log('Template cache reset');
+};
+
 export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGenerated }) => {
   const [selectedTemplate, setSelectedTemplate] = React.useState<string>('');
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [isPreviewing, setIsPreviewing] = React.useState(false);
-  const [isCheckingTemplates, setIsCheckingTemplates] = React.useState(false);
   const [templateStatus, setTemplateStatus] = React.useState<Record<string, {
     accessible: boolean;
     isPDF: boolean;
@@ -30,14 +45,31 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
   // Memoize template IDs to prevent infinite re-renders
   const templateIds = React.useMemo(() => Object.keys(TEMPLATE_MAPPINGS), []);
   
-  // Check which templates are available and accessible - only run once on mount
+  // Check which templates are available and accessible - only run once globally
   React.useEffect(() => {
-    // Prevent multiple simultaneous checks
-    if (isCheckingTemplates) return;
+    // Use cached results if available
+    if (globalTemplateStatus) {
+      setTemplateStatus(globalTemplateStatus);
+      return;
+    }
+    
+    // Prevent multiple simultaneous global checks
+    if (isGloballyChecking) {
+      // If another component is already checking, wait for it to complete
+      const waitForCheck = () => {
+        if (globalTemplateStatus) {
+          setTemplateStatus(globalTemplateStatus);
+        } else if (isGloballyChecking) {
+          setTimeout(waitForCheck, 100); // Check again in 100ms
+        }
+      };
+      waitForCheck();
+      return;
+    }
     
     const checkTemplates = async () => {
-      setIsCheckingTemplates(true);
-      console.log('Starting template accessibility check...');
+      isGloballyChecking = true;
+      console.log('Checking template accessibility (one time for entire app)...');
       
       const status: Record<string, {
         accessible: boolean;
@@ -64,13 +96,15 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
         }
       }
       
+      // Cache globally and set local state
+      globalTemplateStatus = status;
       setTemplateStatus(status);
-      setIsCheckingTemplates(false);
-      console.log('Template accessibility check complete');
+      isGloballyChecking = false;
+      console.log('Template accessibility check complete - cached for future use');
     };
     
     checkTemplates();
-  }, [templateIds, isCheckingTemplates]); // Include isCheckingTemplates to ensure it's up to date
+  }, [templateIds]);
   
   // Available template options (only accessible ones)
   const templateOptions = React.useMemo(() => {
