@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Test</title>
+</head>
+<body>
+    <h1>PDF File Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function testPDFAccess() {
+            const results = document.getElementById('results');
+            
+            const testPaths = [
+                '/templates/test-periscolaire.pdf',
+                '/templates/test-edpp.pdf'
+            ];
+            
+            for (const path of testPaths) {
+                try {
+                    console.log(`Testing path: ${path}`);
+                    const response = await fetch(path);
+                    
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <h3>Path: ${path}</h3>
+                        <p>Status: ${response.status} ${response.statusText}</p>
+                        <p>Content-Type: ${response.headers.get('content-type')}</p>
+                        <p>Content-Length: ${response.headers.get('content-length')}</p>
+                    `;
+                    
+                    if (response.ok) {
+                        const buffer = await response.arrayBuffer();
+                        const firstBytes = new Uint8Array(buffer.slice(0, 8));
+                        const firstBytesStr = Array.from(firstBytes).map(b => String.fromCharCode(b)).join('');
+                        
+                        div.innerHTML += `
+                            <p>Size: ${buffer.byteLength} bytes</p>
+                            <p>First 8 bytes: "${firstBytesStr}"</p>
+                            <p>Valid PDF: ${firstBytesStr.startsWith('%PDF-') ? 'Yes' : 'No'}</p>
+                        `;
+                        
+                        div.style.backgroundColor = firstBytesStr.startsWith('%PDF-') ? '#d4edda' : '#f8d7da';
+                    } else {
+                        div.style.backgroundColor = '#f8d7da';
+                    }
+                    
+                    results.appendChild(div);
+                    
+                } catch (error) {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <h3>Path: ${path}</h3>
+                        <p style="color: red;">Error: ${error.message}</p>
+                    `;
+                    div.style.backgroundColor = '#f8d7da';
+                    results.appendChild(div);
+                }
+            }
+        }
+        
+        // Run test when page loads
+        testPDFAccess();
+    </script>
+</body>
+</html>

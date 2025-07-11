@@ -1,28 +1,18 @@
 /**
  * PDF Generation System
  * 
- * Clean template-based PDF generation that builds forms from scratch
- * instead of overlaying on existing PDFs.
+ * Uses existing PDF templates with form fields and maps values directly.
+ * This approach preserves the exact visual appearance of official forms.
  */
 
-// Form templates
-export { 
-  getTemplate,
-  getAllTemplates,
-  getTemplateIds,
-  PERISCOLAIRE_TEMPLATE,
-  EDPP_TEMPLATE,
-  FORM_TEMPLATES,
-  type FormTemplate,
-  type FormSection,
-  type FormField,
-  type FieldType
-} from './formTemplates';
-
-// PDF generator
-export { 
-  PDFGenerator,
-  generateAndDownloadPDF,
-  previewPDF,
-  type PDFGenerationOptions
-} from './pdfGenerator';
+export {
+  PDFFormFiller,
+  generateAndDownloadFilledPDF as generateAndDownloadPDF,
+  previewFilledPDF as previewPDF,
+  analyzePDFTemplate,
+  testTemplateAccessibility,
+  TEMPLATE_MAPPINGS,
+  extractTemplateData,
+  type TemplateConfig,
+  type PDFFieldMapping
+} from './pdfFormFiller';
