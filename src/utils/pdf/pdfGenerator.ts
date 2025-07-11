@@ -16,26 +16,60 @@ const PDF_CONFIG = {
     height: 842  // A4 height in points
   },
   margins: {
-    top: 50,
-    bottom: 50,
-    left: 50,
-    right: 50
+    top: 60,
+    bottom: 60,
+    left: 60,
+    right: 60
+  },
+  colors: {
+    primary: rgb(0.2, 0.4, 0.8),      // Professional blue
+    secondary: rgb(0.3, 0.5, 0.9),    // Lighter blue
+    accent: rgb(0.8, 0.2, 0.4),       // Accent red
+    text: {
+      primary: rgb(0.1, 0.1, 0.1),    // Near black
+      secondary: rgb(0.4, 0.4, 0.4),  // Medium gray
+      light: rgb(0.6, 0.6, 0.6)       // Light gray
+    },
+    background: {
+      white: rgb(1, 1, 1),
+      lightGray: rgb(0.97, 0.97, 0.97),
+      veryLight: rgb(0.99, 0.99, 0.99)
+    },
+    border: {
+      light: rgb(0.85, 0.85, 0.85),
+      medium: rgb(0.7, 0.7, 0.7),
+      dark: rgb(0.5, 0.5, 0.5)
+    }
   },
   fonts: {
-    title: { size: 16, color: rgb(0, 0, 0) },
-    sectionTitle: { size: 12, color: rgb(0, 0, 0) },
-    label: { size: 9, color: rgb(0.3, 0.3, 0.3) },
-    value: { size: 10, color: rgb(0, 0, 0) }
+    title: { size: 18, weight: 'bold' },
+    subtitle: { size: 14, weight: 'bold' },
+    sectionTitle: { size: 13, weight: 'bold' },
+    subsectionTitle: { size: 11, weight: 'bold' },
+    label: { size: 9, weight: 'normal' },
+    value: { size: 10, weight: 'normal' },
+    footer: { size: 8, weight: 'normal' }
   },
   spacing: {
-    sectionGap: 25,
-    fieldGap: 15,
-    labelValueGap: 3
+    titleGap: 25,
+    sectionGap: 20,
+    subsectionGap: 15,
+    fieldGap: 18,
+    labelValueGap: 6,
+    lineHeight: 1.4
   },
   field: {
-    height: 20,
-    borderColor: rgb(0.8, 0.8, 0.8),
-    backgroundColor: rgb(0.98, 0.98, 0.98)
+    height: 22,
+    borderWidth: 1,
+    cornerRadius: 2,
+    padding: {
+      horizontal: 8,
+      vertical: 4
+    }
+  },
+  layout: {
+    twoColumnThreshold: 4, // Switch to two columns if section has more than 4 fields
+    columnGap: 25
   }
 } as const;
 
@@ -95,7 +129,7 @@ export class PDFGenerator {
 
     const font = options.font || this.font;
     const size = options.size || PDF_CONFIG.fonts.value.size;
-    const color = options.color || PDF_CONFIG.fonts.value.color;
+    const color = options.color || PDF_CONFIG.colors.text.primary;
     const maxWidth = options.maxWidth || (PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.left - PDF_CONFIG.margins.right);
 
     // Handle text wrapping for long text
@@ -130,58 +164,140 @@ export class PDFGenerator {
   private drawFieldBox(x: number, y: number, width: number, height: number): void {
     if (!this.currentPage) return;
 
-    // Draw field background
+    // Draw field background with subtle shadow effect
+    this.currentPage.drawRectangle({
+      x: x + 1,
+      y: y - height + 1,
+      width,
+      height,
+      color: rgb(0.92, 0.92, 0.92) // Shadow
+    });
+
+    // Draw main field background
     this.currentPage.drawRectangle({
       x,
       y: y - height,
       width,
       height,
-      color: PDF_CONFIG.field.backgroundColor,
-      borderColor: PDF_CONFIG.field.borderColor,
-      borderWidth: 0.5
+      color: PDF_CONFIG.colors.background.white,
+      borderColor: PDF_CONFIG.colors.border.medium,
+      borderWidth: PDF_CONFIG.field.borderWidth
+    });
+    
+    // Draw subtle inner highlight
+    this.currentPage.drawRectangle({
+      x: x + 1,
+      y: y - 2,
+      width: width - 2,
+      height: 1,
+      color: PDF_CONFIG.colors.background.lightGray
     });
   }
 
   private renderTitle(title: string): void {
-    this.checkPageSpace(30);
+    this.checkPageSpace(50);
     
+    // Draw decorative header background
+    const headerHeight = 40;
+    const headerY = this.currentY - headerHeight;
+    
+    this.currentPage?.drawRectangle({
+      x: 0,
+      y: headerY,
+      width: PDF_CONFIG.pageSize.width,
+      height: headerHeight,
+      color: PDF_CONFIG.colors.primary
+    });
+    
+    // Draw accent gradient effect (simulated with multiple rectangles)
+    for (let i = 0; i < 3; i++) {
+      const opacity = 0.1 - (i * 0.03);
+      this.currentPage?.drawRectangle({
+        x: 0,
+        y: headerY + headerHeight - (i + 1) * 2,
+        width: PDF_CONFIG.pageSize.width,
+        height: 2,
+        color: rgb(
+          PDF_CONFIG.colors.primary.red + opacity,
+          PDF_CONFIG.colors.primary.green + opacity,
+          PDF_CONFIG.colors.primary.blue + opacity
+        )
+      });
+    }
+    
+    // Calculate centered position for title text
     const x = PDF_CONFIG.pageSize.width / 2;
-    this.drawText(title, x - (this.boldFont!.widthOfTextAtSize(title, PDF_CONFIG.fonts.title.size) / 2), this.currentY, {
+    const titleWidth = this.boldFont!.widthOfTextAtSize(title, PDF_CONFIG.fonts.title.size);
+    // Position text baseline to center it vertically in the header
+    // Text baseline should be at center minus half the text height
+    const textY = headerY + (headerHeight / 2) + (PDF_CONFIG.fonts.title.size * 0.35);
+    
+    this.drawText(title, x - (titleWidth / 2), textY, {
       size: PDF_CONFIG.fonts.title.size,
-      color: PDF_CONFIG.fonts.title.color,
+      color: rgb(1, 1, 1), // White text on blue background
       font: this.boldFont!
     });
     
-    this.currentY -= 40;
+    this.currentY = headerY - PDF_CONFIG.spacing.titleGap;
   }
 
   private renderSectionTitle(title: string): void {
-    this.checkPageSpace(25);
+    this.checkPageSpace(35);
     
-    this.drawText(title, PDF_CONFIG.margins.left, this.currentY, {
+    // Draw section background bar
+    const barHeight = 25;
+    const barY = this.currentY - barHeight;
+    
+    this.currentPage?.drawRectangle({
+      x: PDF_CONFIG.margins.left - 10,
+      y: barY,
+      width: PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.left - PDF_CONFIG.margins.right + 20,
+      height: barHeight,
+      color: PDF_CONFIG.colors.background.lightGray,
+      borderColor: PDF_CONFIG.colors.border.light,
+      borderWidth: 0.5
+    });
+    
+    // Draw accent line on the left
+    this.currentPage?.drawRectangle({
+      x: PDF_CONFIG.margins.left - 10,
+      y: barY,
+      width: 4,
+      height: barHeight,
+      color: PDF_CONFIG.colors.primary
+    });
+    
+    // Center the text vertically in the bar
+    const textY = barY + (barHeight / 2) + (PDF_CONFIG.fonts.sectionTitle.size * 0.35);
+    
+    this.drawText(title, PDF_CONFIG.margins.left, textY, {
       size: PDF_CONFIG.fonts.sectionTitle.size,
-      color: PDF_CONFIG.fonts.sectionTitle.color,
+      color: PDF_CONFIG.colors.text.primary,
       font: this.boldFont!
     });
     
-    this.currentY -= PDF_CONFIG.spacing.sectionGap;
+    this.currentY = barY - PDF_CONFIG.spacing.sectionGap;
   }
 
   private renderField(field: FormField, value: string | boolean | number, isLeftColumn: boolean = true): void {
-    this.checkPageSpace(PDF_CONFIG.field.height + 10);
+    this.checkPageSpace(PDF_CONFIG.field.height + 15);
     
-    const fieldWidth = (PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.left - PDF_CONFIG.margins.right - 20) / 2;
+    const contentWidth = PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.left - PDF_CONFIG.margins.right;
+    const fieldWidth = (contentWidth - PDF_CONFIG.layout.columnGap) / 2;
     const x = isLeftColumn 
       ? PDF_CONFIG.margins.left 
-      : PDF_CONFIG.margins.left + fieldWidth + 20;
+      : PDF_CONFIG.margins.left + fieldWidth + PDF_CONFIG.layout.columnGap;
     
-    // Draw label
-    this.drawText(field.label + (field.required ? ' *' : ''), x, this.currentY, {
+    // Draw label with improved styling
+    const labelText = field.label + (field.required ? ' *' : '');
+    this.drawText(labelText, x, this.currentY, {
       size: PDF_CONFIG.fonts.label.size,
-      color: PDF_CONFIG.fonts.label.color
+      color: field.required ? PDF_CONFIG.colors.accent : PDF_CONFIG.colors.text.secondary,
+      font: field.required ? this.boldFont! : this.font!
     });
     
-    this.currentY -= PDF_CONFIG.spacing.labelValueGap + PDF_CONFIG.fonts.label.size;
+    // Move to field position with consistent spacing
+    this.currentY -= PDF_CONFIG.fonts.label.size + PDF_CONFIG.spacing.labelValueGap;
     
     // Create form field or static content based on options
     if (this.options.editable !== false && this.form && this.currentPage) {
@@ -268,10 +384,21 @@ export class PDFGenerator {
       : String(value || '');
     
     if (displayValue) {
-      this.drawText(displayValue, x + 5, this.currentY - 6, {
+      // Calculate proper text positioning within the field box
+      // Field box coordinates: top = this.currentY, bottom = this.currentY - PDF_CONFIG.field.height
+      const fieldBoxBottom = this.currentY - PDF_CONFIG.field.height;
+      
+      // Calculate the vertical center of the field box
+      const fieldBoxCenter = fieldBoxBottom + (PDF_CONFIG.field.height / 2);
+      
+      // Position text baseline to center it visually in the field box
+      // For 10pt font, we need to adjust by approximately 30% of font size above center
+      const textY = fieldBoxCenter + (PDF_CONFIG.fonts.value.size * 0.3);
+      
+      this.drawText(displayValue, x + PDF_CONFIG.field.padding.horizontal, textY, {
         size: PDF_CONFIG.fonts.value.size,
-        color: PDF_CONFIG.fonts.value.color,
-        maxWidth: fieldWidth - 10
+        color: PDF_CONFIG.colors.text.primary,
+        maxWidth: fieldWidth - (PDF_CONFIG.field.padding.horizontal * 2)
       });
     }
   }
@@ -291,27 +418,65 @@ export class PDFGenerator {
   private renderSection(section: FormSection, data: Record<string, string | boolean | number>): void {
     this.renderSectionTitle(section.title);
     
-    // Render fields in two columns when possible
-    for (let i = 0; i < section.fields.length; i += 2) {
-      const leftField = section.fields[i];
-      const rightField = section.fields[i + 1];
-      
-      const leftValue = data[leftField.id] || '';
-      
-      // Render left field
-      this.renderField(leftField, leftValue, true);
-      
-      // Render right field if exists
-      if (rightField) {
-        const rightValue = data[rightField.id] || '';
-        this.renderField(rightField, rightValue, false);
-      } else {
-        // No right field, move to next row
-        this.currentY -= PDF_CONFIG.field.height + PDF_CONFIG.spacing.fieldGap;
+    // Use two columns for sections with many fields, single column for few fields
+    const useColumns = section.fields.length >= PDF_CONFIG.layout.twoColumnThreshold;
+    
+    if (useColumns) {
+      // Render fields in two columns when there are many fields
+      for (let i = 0; i < section.fields.length; i += 2) {
+        const leftField = section.fields[i];
+        const rightField = section.fields[i + 1];
+        
+        const leftValue = data[leftField.id] || '';
+        
+        // Render left field
+        this.renderField(leftField, leftValue, true);
+        
+        // Render right field if exists
+        if (rightField) {
+          const rightValue = data[rightField.id] || '';
+          this.renderField(rightField, rightValue, false);
+        } else {
+          // No right field, move to next row
+          this.currentY -= PDF_CONFIG.field.height + PDF_CONFIG.spacing.fieldGap;
+        }
+      }
+    } else {
+      // Single column layout for sections with few fields
+      for (const field of section.fields) {
+        const value = data[field.id] || '';
+        this.renderFieldFullWidth(field, value);
       }
     }
     
-    this.currentY -= 10; // Extra space after section
+    this.currentY -= PDF_CONFIG.spacing.subsectionGap; // Extra space after section
+  }
+
+  private renderFieldFullWidth(field: FormField, value: string | boolean | number): void {
+    this.checkPageSpace(PDF_CONFIG.field.height + 15);
+    
+    const contentWidth = PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.left - PDF_CONFIG.margins.right;
+    const x = PDF_CONFIG.margins.left;
+    
+    // Draw label with improved styling
+    const labelText = field.label + (field.required ? ' *' : '');
+    this.drawText(labelText, x, this.currentY, {
+      size: PDF_CONFIG.fonts.label.size,
+      color: field.required ? PDF_CONFIG.colors.accent : PDF_CONFIG.colors.text.secondary,
+      font: field.required ? this.boldFont! : this.font!
+    });
+    
+    // Move to field position with consistent spacing
+    this.currentY -= PDF_CONFIG.fonts.label.size + PDF_CONFIG.spacing.labelValueGap;
+    
+    // Create form field or static content based on options
+    if (this.options.editable !== false && this.form && this.currentPage) {
+      this.createEditableField(field, value, x, contentWidth);
+    } else {
+      this.createStaticField(field, value, x, contentWidth);
+    }
+    
+    this.currentY -= PDF_CONFIG.field.height + PDF_CONFIG.spacing.fieldGap;
   }
 
   async generatePDF(template: FormTemplate, family: Family, options: PDFGenerationOptions = {}): Promise<Uint8Array> {
@@ -341,25 +506,47 @@ export class PDFGenerator {
   private renderFooter(): void {
     if (!this.currentPage || !this.font) return;
     
-    const footerY = PDF_CONFIG.margins.bottom - 30;
-    const generationText = `Document généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
+    const footerY = PDF_CONFIG.margins.bottom;
     
-    // Draw generation info
-    const generationWidth = this.font.widthOfTextAtSize(generationText, 8);
-    const generationX = (PDF_CONFIG.pageSize.width - generationWidth) / 2;
-    this.drawText(generationText, generationX, footerY, {
-      size: 8,
-      color: rgb(0.5, 0.5, 0.5)
+    // Draw footer separator line
+    this.currentPage.drawLine({
+      start: { x: PDF_CONFIG.margins.left, y: footerY + 20 },
+      end: { x: PDF_CONFIG.pageSize.width - PDF_CONFIG.margins.right, y: footerY + 20 },
+      thickness: 0.5,
+      color: PDF_CONFIG.colors.border.light
     });
     
-    // Draw editable info if enabled
+    // Draw generation info with better styling
+    const generationText = `Document généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
+    const generationWidth = this.font.widthOfTextAtSize(generationText, PDF_CONFIG.fonts.footer.size);
+    const generationX = (PDF_CONFIG.pageSize.width - generationWidth) / 2;
+    
+    this.drawText(generationText, generationX, footerY, {
+      size: PDF_CONFIG.fonts.footer.size,
+      color: PDF_CONFIG.colors.text.light
+    });
+    
+    // Draw editable info if enabled with improved styling
     if (this.options.editable !== false && this.options.showEditableNotice !== false) {
-      const editableText = `[EDITABLE] Ce formulaire est éditable - Vous pouvez modifier les champs directement dans le PDF`;
-      const editableWidth = this.font.widthOfTextAtSize(editableText, 8);
+      const editableText = `[EDITABLE] FORMULAIRE ÉDITABLE - Vous pouvez modifier les champs directement dans ce PDF`;
+      const editableWidth = this.font.widthOfTextAtSize(editableText, PDF_CONFIG.fonts.footer.size);
       const editableX = (PDF_CONFIG.pageSize.width - editableWidth) / 2;
-      this.drawText(editableText, editableX, footerY - 12, {
-        size: 8,
-        color: rgb(0, 0.5, 0)
+      
+      // Draw background for editable notice
+      this.currentPage.drawRectangle({
+        x: editableX - 10,
+        y: footerY - 25,
+        width: editableWidth + 20,
+        height: 14,
+        color: PDF_CONFIG.colors.background.lightGray,
+        borderColor: PDF_CONFIG.colors.primary,
+        borderWidth: 0.5
+      });
+      
+      this.drawText(editableText, editableX, footerY - 18, {
+        size: PDF_CONFIG.fonts.footer.size,
+        color: PDF_CONFIG.colors.primary,
+        font: this.boldFont!
       });
     }
   }
