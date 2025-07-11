@@ -257,11 +257,28 @@ export const FamilyForm: React.FC = () => {
               icon={isStepValid(0) ? <IconCheck /> : undefined}
               color={isStepValid(0) ? "green" : undefined}
             >
-              <AddressForm
-                form={addressForm}
-                title="Adresse du domicile"
-                description="Adresse principale de la famille"
-              />
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 4 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <AddressForm
+                  form={addressForm}
+                  title="Adresse du domicile"
+                  description="Adresse principale de la famille"
+                />
+              </Stack>
             </Stepper.Step>
 
             <Stepper.Step 
@@ -270,9 +287,26 @@ export const FamilyForm: React.FC = () => {
               icon={isStepValid(1) ? <IconCheck /> : undefined}
               color={isStepValid(1) ? "green" : undefined}
             >
-              <ParentForm
-                form={parentForm}
-              />
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 4 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <ParentForm
+                  form={parentForm}
+                />
+              </Stack>
             </Stepper.Step>
 
             <Stepper.Step 
@@ -281,9 +315,26 @@ export const FamilyForm: React.FC = () => {
               icon={isStepValid(2) ? <IconCheck /> : undefined}
               color={isStepValid(2) ? "green" : undefined}
             >
-              <StudentForm
-                form={studentForm}
-              />
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 4 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <StudentForm
+                  form={studentForm}
+                />
+              </Stack>
             </Stepper.Step>
 
             <Stepper.Step 
@@ -292,9 +343,26 @@ export const FamilyForm: React.FC = () => {
               icon={isStepValid(3) ? <IconCheck /> : undefined}
               color={isStepValid(3) ? "green" : undefined}
             >
-              <EmergencyContactForm
-                form={emergencyContactForm}
-              />
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 4 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <EmergencyContactForm
+                  form={emergencyContactForm}
+                />
+              </Stack>
             </Stepper.Step>
 
             <Stepper.Completed>
@@ -341,21 +409,6 @@ export const FamilyForm: React.FC = () => {
               </Stack>
             </Stepper.Completed>
           </Stepper>
-
-          <Group justify="space-between" mt="xl">
-            <Button variant="default" onClick={prevStep} disabled={active === 0}>
-              Précédent
-            </Button>
-            
-            {active < 4 ? (
-              <Button 
-                onClick={nextStep}
-                disabled={!isStepValid(active)}
-              >
-                Suivant
-              </Button>
-            ) : null}
-          </Group>
         </Card>
       </Stack>
     </Container>
