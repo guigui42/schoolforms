@@ -49,32 +49,68 @@ The new system generates PDFs completely from scratch using predefined templates
 import { generateAndDownloadPDF, PERISCOLAIRE_TEMPLATE } from '../utils/pdf';
 import type { Family } from '../types/forms';
 
-// Generate and download PDF
+// Generate editable PDF (default)
 await generateAndDownloadPDF(PERISCOLAIRE_TEMPLATE, family);
 
+// Generate static PDF
+await generateAndDownloadPDF(PERISCOLAIRE_TEMPLATE, family, { 
+  editable: false 
+});
+
 // Preview PDF in new tab
-await previewPDF(PERISCOLAIRE_TEMPLATE, family);
+await previewPDF(PERISCOLAIRE_TEMPLATE, family, {
+  editable: true
+});
+
+// Custom options
+await generateAndDownloadPDF(PERISCOLAIRE_TEMPLATE, family, {
+  editable: true,
+  filename: 'mon-formulaire.pdf',
+  showEditableNotice: true
+});
+```
+
+### PDF Generation Options
+
+```typescript
+interface PDFGenerationOptions {
+  editable?: boolean;           // Create editable form fields (default: true)
+  filename?: string;            // Custom filename for download
+  showEditableNotice?: boolean; // Show editable notice in footer (default: true)
+}
 ```
 
 ### In React Components
 
 ```tsx
 import React from 'react';
-import { Button } from '@mantine/core';
+import { Button, Switch } from '@mantine/core';
 import { generateAndDownloadPDF, getTemplate } from '../utils/pdf';
 
 export const PDFGeneratorComponent = ({ family }) => {
+  const [isEditable, setIsEditable] = React.useState(true);
+  
   const handleGeneratePDF = async (templateId: string) => {
     const template = getTemplate(templateId);
     if (template) {
-      await generateAndDownloadPDF(template, family);
+      await generateAndDownloadPDF(template, family, {
+        editable: isEditable,
+        filename: `${template.name}_${new Date().toISOString().split('T')[0]}.pdf`
+      });
     }
   };
 
   return (
-    <Button onClick={() => handleGeneratePDF('periscolaire')}>
-      Generate Périscolaire PDF
-    </Button>
+    <>
+      <Switch
+        label="Formulaire éditable"
+        checked={isEditable}
+        onChange={(e) => setIsEditable(e.currentTarget.checked)}
+      />
+      <Button onClick={() => handleGeneratePDF('periscolaire')}>
+        Generate {isEditable ? 'Editable' : 'Static'} PDF
+      </Button>
+    </>
   );
 };
 ```
@@ -123,6 +159,51 @@ export const FORM_TEMPLATES: Record<string, FormTemplate> = {
 };
 ```
 
+## 📝 Editable PDF Forms
+
+### How It Works
+
+The system generates PDFs with **interactive form fields** that can be filled and modified directly in PDF viewers:
+
+- **Text Fields**: Single and multi-line text inputs
+- **Dropdowns**: Selection from predefined options  
+- **Checkboxes**: Boolean yes/no values
+- **Date Fields**: Date pickers (in compatible viewers)
+
+### Field Types Mapping
+
+| Template Field Type | PDF Form Element | User Experience |
+|-------------------|-----------------|-----------------|
+| `text` | Text Field | Editable text input |
+| `textarea` | Multi-line Text Field | Expandable text area |
+| `email` | Text Field | Email input with validation |
+| `phone` | Text Field | Phone number input |
+| `date` | Text Field | Date input |
+| `select` | Dropdown | Selectable options |
+| `checkbox` | Checkbox | Clickable checkbox |
+
+### Benefits for Users
+
+1. **Flexible Completion**: Fill forms digitally or print and complete by hand
+2. **Easy Corrections**: Modify values without regenerating PDFs
+3. **Digital Signatures**: Add signatures in compatible PDF editors
+4. **Form Validation**: Some PDF viewers provide field validation
+5. **Accessibility**: Better screen reader support with form fields
+
+### Compatibility
+
+✅ **Works with:**
+- Adobe Acrobat Reader
+- Chrome PDF Viewer  
+- Firefox PDF Viewer
+- Safari PDF Viewer
+- Most modern PDF applications
+
+✅ **Mobile Support:**
+- iOS Safari
+- Android Chrome
+- Adobe Acrobat Mobile
+
 ## 🎨 Styling Configuration
 
 PDF styling is configured in `PDF_CONFIG`:
@@ -167,12 +248,15 @@ Supported field types:
 
 ### New Advantages  
 - ✅ Clean, professional PDF output
+- ✅ **Editable PDF forms** - Users can modify fields after generation
 - ✅ Consistent styling and layout
 - ✅ Easy template creation and modification
 - ✅ Type-safe field definitions
 - ✅ Automatic data validation
 - ✅ Responsive field layout
 - ✅ Built-in pagination
+- ✅ **Form field types**: text, dropdown, checkbox, textarea
+- ✅ **Preview functionality** before download
 
 ## 🔄 Migration from Old System
 

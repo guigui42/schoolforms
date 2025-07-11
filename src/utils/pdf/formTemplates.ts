@@ -9,6 +9,44 @@
 import type { Family, Student, Parent } from '../../types/forms';
 import type { Address, EmergencyContact } from '../../types/common';
 
+// Helper function to safely format dates
+function formatDate(date: Date | string | undefined | null): string {
+  if (!date) return '';
+  
+  try {
+    // If it's already a Date object
+    if (date instanceof Date) {
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleDateString('fr-FR');
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof date === 'string') {
+      // Handle empty string
+      if (date.trim() === '') return '';
+      
+      const parsedDate = new Date(date);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleDateString('fr-FR');
+      }
+      
+      // If it's already in French format, return as-is
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(date)) {
+        return date;
+      }
+      
+      return date; // Return as-is if it can't be parsed but looks like a date
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Error formatting date:', error, 'Input:', date);
+    return String(date || '');
+  }
+}
+
+
+
 // Form field types
 export type FieldType = 'text' | 'date' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox';
 
@@ -266,7 +304,7 @@ export const PERISCOLAIRE_TEMPLATE: FormTemplate = {
       // Child information
       child_lastName: student.lastName || '',
       child_firstName: student.firstName || '',
-      child_birthDate: student.birthDate ? student.birthDate.toLocaleDateString('fr-FR') : '',
+      child_birthDate: formatDate(student.birthDate),
       child_grade: student.grade || '',
       child_school: student.school || '',
       
@@ -501,7 +539,7 @@ export const EDPP_TEMPLATE: FormTemplate = {
       // Child information
       child_lastName: student.lastName || '',
       child_firstName: student.firstName || '',
-      child_birthDate: student.birthDate ? student.birthDate.toLocaleDateString('fr-FR') : '',
+      child_birthDate: formatDate(student.birthDate),
       child_nationality: 'Française', // Default, can be made configurable
       child_grade: student.grade || '',
       

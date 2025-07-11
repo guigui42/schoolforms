@@ -1,11 +1,11 @@
 /**
- * Clean PDF Generator
+ * Clean PDF Generator with Editable Forms
  * 
- * This module generates PDFs completely from scratch based on form templates,
- * eliminating the need for coordinate positioning and template overlays.
+ * This module generates PDFs with editable form fields, allowing users
+ * to modify values manually after generation.
  */
 
-import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFPage, PDFFont, PDFForm, rgb, StandardFonts } from 'pdf-lib';
 import type { FormTemplate, FormSection, FormField } from './formTemplates';
 import type { Family } from '../../types/forms';
 
@@ -39,17 +39,29 @@ const PDF_CONFIG = {
   }
 } as const;
 
+// PDF generation options
+export interface PDFGenerationOptions {
+  editable?: boolean; // Whether to create editable form fields
+  filename?: string;  // Custom filename for download
+  showEditableNotice?: boolean; // Show notice about editable fields
+}
+
 export class PDFGenerator {
   private pdfDoc: PDFDocument | null = null;
   private currentPage: PDFPage | null = null;
   private font: PDFFont | null = null;
   private boldFont: PDFFont | null = null;
+  private form: PDFForm | null = null;
   private currentY: number = 0;
+  private fieldCounter: number = 0; // For unique field names
+  private options: PDFGenerationOptions = {};
 
   async initialize(): Promise<void> {
     this.pdfDoc = await PDFDocument.create();
     this.font = await this.pdfDoc.embedFont(StandardFonts.Helvetica);
     this.boldFont = await this.pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    this.form = this.pdfDoc.getForm();
+    this.fieldCounter = 0;
     
     // Create first page
     this.addNewPage();
@@ -171,16 +183,89 @@ export class PDFGenerator {
     
     this.currentY -= PDF_CONFIG.spacing.labelValueGap + PDF_CONFIG.fonts.label.size;
     
+    // Create form field or static content based on options
+    if (this.options.editable !== false && this.form && this.currentPage) {
+      this.createEditableField(field, value, x, fieldWidth);
+    } else {
+      this.createStaticField(field, value, x, fieldWidth);
+    }
+    
+    if (!isLeftColumn) {
+      this.currentY -= PDF_CONFIG.field.height + PDF_CONFIG.spacing.fieldGap;
+    }
+  }
+
+  private createEditableField(field: FormField, value: string | boolean | number, x: number, fieldWidth: number): void {
+    if (!this.form || !this.currentPage) return;
+    
+    // Create unique field name
+    const fieldName = `${field.id}_${this.fieldCounter++}`;
+    
+    // Calculate field rectangle (PDF coordinate system has origin at bottom-left)
+    const fieldRect = {
+      x,
+      y: this.currentY - PDF_CONFIG.field.height,
+      width: fieldWidth,
+      height: PDF_CONFIG.field.height
+    };
+    
+    // Create appropriate form field based on type
+    try {
+      switch (field.type) {
+        case 'checkbox': {
+          const checkBox = this.form.createCheckBox(fieldName);
+          checkBox.addToPage(this.currentPage, fieldRect);
+          
+          // Set initial value
+          if (typeof value === 'boolean' && value) {
+            checkBox.check();
+          }
+          break;
+        }
+        
+        case 'select': {
+          if (field.options && field.options.length > 0) {
+            const dropdown = this.form.createDropdown(fieldName);
+            dropdown.addToPage(this.currentPage, fieldRect);
+            dropdown.addOptions(field.options);
+            
+            // Set initial value if it matches an option
+            const stringValue = String(value || '');
+            if (field.options.includes(stringValue)) {
+              dropdown.select(stringValue);
+            }
+          } else {
+            // Fallback to text field if no options
+            this.createTextField(fieldName, fieldRect, String(value || ''));
+          }
+          break;
+        }
+        
+        case 'textarea':
+        case 'text':
+        case 'email':
+        case 'phone':
+        case 'date':
+        default: {
+          this.createTextField(fieldName, fieldRect, String(value || ''), field.type === 'textarea');
+          break;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to create form field ${fieldName}:`, error);
+      // Fallback to static field
+      this.createStaticField(field, value, x, fieldWidth);
+    }
+  }
+
+  private createStaticField(field: FormField, value: string | boolean | number, x: number, fieldWidth: number): void {
     // Draw field box
     this.drawFieldBox(x, this.currentY, fieldWidth, PDF_CONFIG.field.height);
     
     // Draw value
-    let displayValue = '';
-    if (typeof value === 'boolean') {
-      displayValue = field.type === 'checkbox' ? (value ? '☑' : '☐') : (value ? 'Oui' : 'Non');
-    } else {
-      displayValue = String(value || '');
-    }
+    const displayValue = typeof value === 'boolean' 
+      ? (field.type === 'checkbox' ? (value ? '[X]' : '[ ]') : (value ? 'Oui' : 'Non'))
+      : String(value || '');
     
     if (displayValue) {
       this.drawText(displayValue, x + 5, this.currentY - 6, {
@@ -189,9 +274,17 @@ export class PDFGenerator {
         maxWidth: fieldWidth - 10
       });
     }
+  }
+
+  private createTextField(fieldName: string, rect: { x: number; y: number; width: number; height: number }, value: string, isMultiline: boolean = false): void {
+    if (!this.form || !this.currentPage) return;
     
-    if (!isLeftColumn) {
-      this.currentY -= PDF_CONFIG.field.height + PDF_CONFIG.spacing.fieldGap;
+    const textField = this.form.createTextField(fieldName);
+    textField.addToPage(this.currentPage, rect);
+    textField.setText(value);
+    
+    if (isMultiline) {
+      textField.enableMultiline();
     }
   }
 
@@ -221,7 +314,8 @@ export class PDFGenerator {
     this.currentY -= 10; // Extra space after section
   }
 
-  async generatePDF(template: FormTemplate, family: Family): Promise<Uint8Array> {
+  async generatePDF(template: FormTemplate, family: Family, options: PDFGenerationOptions = {}): Promise<Uint8Array> {
+    this.options = { editable: true, showEditableNotice: true, ...options };
     await this.initialize();
     
     if (!this.pdfDoc) throw new Error('Failed to initialize PDF document');
@@ -247,15 +341,27 @@ export class PDFGenerator {
   private renderFooter(): void {
     if (!this.currentPage || !this.font) return;
     
-    const footerY = PDF_CONFIG.margins.bottom - 20;
-    const footerText = `Document généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
-    const textWidth = this.font.widthOfTextAtSize(footerText, 8);
-    const x = (PDF_CONFIG.pageSize.width - textWidth) / 2;
+    const footerY = PDF_CONFIG.margins.bottom - 30;
+    const generationText = `Document généré le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`;
     
-    this.drawText(footerText, x, footerY, {
+    // Draw generation info
+    const generationWidth = this.font.widthOfTextAtSize(generationText, 8);
+    const generationX = (PDF_CONFIG.pageSize.width - generationWidth) / 2;
+    this.drawText(generationText, generationX, footerY, {
       size: 8,
       color: rgb(0.5, 0.5, 0.5)
     });
+    
+    // Draw editable info if enabled
+    if (this.options.editable !== false && this.options.showEditableNotice !== false) {
+      const editableText = `[EDITABLE] Ce formulaire est éditable - Vous pouvez modifier les champs directement dans le PDF`;
+      const editableWidth = this.font.widthOfTextAtSize(editableText, 8);
+      const editableX = (PDF_CONFIG.pageSize.width - editableWidth) / 2;
+      this.drawText(editableText, editableX, footerY - 12, {
+        size: 8,
+        color: rgb(0, 0.5, 0)
+      });
+    }
   }
 }
 
@@ -263,10 +369,10 @@ export class PDFGenerator {
 export async function generateAndDownloadPDF(
   template: FormTemplate, 
   family: Family, 
-  filename?: string
+  options: PDFGenerationOptions = {}
 ): Promise<void> {
   const generator = new PDFGenerator();
-  const pdfBytes = await generator.generatePDF(template, family);
+  const pdfBytes = await generator.generatePDF(template, family, options);
   
   // Create blob and download
   const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
@@ -274,7 +380,7 @@ export async function generateAndDownloadPDF(
   
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename || `${template.name}_${new Date().toISOString().split('T')[0]}.pdf`;
+  link.download = options.filename || `${template.name}_${new Date().toISOString().split('T')[0]}.pdf`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -283,9 +389,13 @@ export async function generateAndDownloadPDF(
 }
 
 // Helper function to preview PDF in new tab
-export async function previewPDF(template: FormTemplate, family: Family): Promise<void> {
+export async function previewPDF(
+  template: FormTemplate, 
+  family: Family, 
+  options: PDFGenerationOptions = {}
+): Promise<void> {
   const generator = new PDFGenerator();
-  const pdfBytes = await generator.generatePDF(template, family);
+  const pdfBytes = await generator.generatePDF(template, family, options);
   
   const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);

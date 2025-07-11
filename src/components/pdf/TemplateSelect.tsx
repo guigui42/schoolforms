@@ -1,7 +1,7 @@
 import React from 'react';
-import { Select, Button, Group, Card, Text, Stack, Badge } from '@mantine/core';
-import { IconDownload, IconFileText } from '@tabler/icons-react';
-import { getAllTemplates, getTemplate, generateAndDownloadPDF } from '../../utils/pdf';
+import { Select, Button, Group, Card, Text, Stack, Badge, Switch } from '@mantine/core';
+import { IconDownload, IconFileText, IconEdit, IconEye } from '@tabler/icons-react';
+import { getAllTemplates, getTemplate, generateAndDownloadPDF, previewPDF } from '../../utils/pdf';
 import { notifications } from '@mantine/notifications';
 import type { Family } from '../../types/forms';
 
@@ -13,6 +13,8 @@ interface TemplateSelectProps {
 export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGenerated }) => {
   const [selectedTemplate, setSelectedTemplate] = React.useState<string>('');
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [isPreviewing, setIsPreviewing] = React.useState(false);
+  const [isEditable, setIsEditable] = React.useState(true);
   
   const templates = getAllTemplates();
   
@@ -40,11 +42,14 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
         throw new Error('Template not found');
       }
       
-      await generateAndDownloadPDF(template, family);
+      await generateAndDownloadPDF(template, family, { 
+        editable: isEditable,
+        filename: `${template.name}_${new Date().toISOString().split('T')[0]}.pdf`
+      });
       
       notifications.show({
         title: 'PDF généré',
-        message: 'Le formulaire a été généré et téléchargé avec succès',
+        message: `Le formulaire ${isEditable ? 'éditable' : 'statique'} a été généré et téléchargé avec succès`,
         color: 'green',
         icon: <IconDownload size={16} />,
       });
@@ -60,6 +65,47 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handlePreviewPDF = async () => {
+    if (!selectedTemplate) {
+      notifications.show({
+        title: 'Erreur',
+        message: 'Veuillez sélectionner un modèle de formulaire',
+        color: 'red',
+      });
+      return;
+    }
+
+    setIsPreviewing(true);
+    
+    try {
+      const template = getTemplate(selectedTemplate);
+      if (!template) {
+        throw new Error('Template not found');
+      }
+      
+      await previewPDF(template, family, { 
+        editable: isEditable 
+      });
+      
+      notifications.show({
+        title: 'Aperçu ouvert',
+        message: 'L\'aperçu du PDF a été ouvert dans un nouvel onglet',
+        color: 'blue',
+        icon: <IconEye size={16} />,
+      });
+      
+    } catch (error) {
+      console.error('Error previewing PDF:', error);
+      notifications.show({
+        title: 'Erreur',
+        message: 'Impossible d\'ouvrir l\'aperçu. Veuillez réessayer.',
+        color: 'red',
+      });
+    } finally {
+      setIsPreviewing(false);
     }
   };
 
@@ -99,16 +145,46 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
             </Stack>
           </Card>
         )}
+
+        <Card withBorder padding="sm" bg="blue.0">
+          <Stack gap="sm">
+            <Group justify="space-between">
+              <Text size="sm" fw={500}>Options de génération</Text>
+              <IconEdit size={16} />
+            </Group>
+            <Switch
+              label="Formulaire éditable"
+              description="Les champs peuvent être modifiés après génération"
+              checked={isEditable}
+              onChange={(event) => setIsEditable(event.currentTarget.checked)}
+            />
+            {isEditable && (
+              <Text size="xs" c="green.7">
+                📝 Le PDF généré contiendra des champs modifiables
+              </Text>
+            )}
+          </Stack>
+        </Card>
         
-        <Button
-          onClick={handleGeneratePDF}
-          disabled={!selectedTemplate}
-          loading={isGenerating}
-          leftSection={<IconDownload size={16} />}
-          size="md"
-        >
-          Générer et télécharger le PDF
-        </Button>
+        <Group grow>
+          <Button
+            onClick={handlePreviewPDF}
+            disabled={!selectedTemplate}
+            loading={isPreviewing}
+            leftSection={<IconEye size={16} />}
+            variant="light"
+          >
+            Aperçu
+          </Button>
+          <Button
+            onClick={handleGeneratePDF}
+            disabled={!selectedTemplate}
+            loading={isGenerating}
+            leftSection={<IconDownload size={16} />}
+          >
+            Télécharger
+          </Button>
+        </Group>
       </Stack>
     </Card>
   );

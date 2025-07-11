@@ -23,5 +23,6 @@ export {
 export { 
   PDFGenerator,
   generateAndDownloadPDF,
-  previewPDF
+  previewPDF,
+  type PDFGenerationOptions
 } from './pdfGenerator';
