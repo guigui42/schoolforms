@@ -1,8 +1,7 @@
 import React from 'react';
 import { Select, Button, Group, Card, Text, Stack, Badge } from '@mantine/core';
 import { IconDownload, IconFileText } from '@tabler/icons-react';
-import { PDFGenerator } from '../../utils/pdf/pdfGeneratorNew';
-import { getAllTemplates } from '../../utils/pdf/templates';
+import { getAllTemplates, getTemplate, generateAndDownloadPDF } from '../../utils/pdf';
 import { notifications } from '@mantine/notifications';
 import type { Family } from '../../types/forms';
 
@@ -36,8 +35,12 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
     setIsGenerating(true);
     
     try {
-      const pdfGenerator = new PDFGenerator();
-      await pdfGenerator.generateAndDownloadPDF(family, selectedTemplate);
+      const template = getTemplate(selectedTemplate);
+      if (!template) {
+        throw new Error('Template not found');
+      }
+      
+      await generateAndDownloadPDF(template, family);
       
       notifications.show({
         title: 'PDF généré',
@@ -91,7 +94,7 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ family, onPDFGen
                 {selectedTemplateInfo.description}
               </Text>
               <Text size="xs" c="dimmed">
-                Fichier: {selectedTemplateInfo.fileName}
+                Sections: {selectedTemplateInfo.sections.length} sections
               </Text>
             </Stack>
           </Card>

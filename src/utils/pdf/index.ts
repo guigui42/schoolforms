@@ -1,23 +1,27 @@
-// Export new template-based PDF generator
-export { PDFGenerator } from './pdfGeneratorNew';
-export { 
-  getAllTemplates, 
-  getTemplate, 
-  getTemplateByFilename, 
-  generateFieldMappingsForTemplate,
-  ALSH_EDPP_TEMPLATE,
-  PERISCOLAIRE_TEMPLATE,
-  EDPP_CONTRACT_TEMPLATE,
-  EDPP_WEDNESDAY_TEMPLATE,
-  PDF_TEMPLATES,
-  type PDFTemplate,
-  type PDFFieldMapping,
-  type PDFFieldCoordinate
-} from './templates';
+/**
+ * PDF Generation System
+ * 
+ * Clean template-based PDF generation that builds forms from scratch
+ * instead of overlaying on existing PDFs.
+ */
 
-// Legacy exports for backward compatibility
+// Form templates
 export { 
-  PDFGenerator as LegacyPDFGenerator,
-  createFieldMappingsFromFamily,
-  createCoordinateMappingsFromFamily 
+  getTemplate,
+  getAllTemplates,
+  getTemplateIds,
+  PERISCOLAIRE_TEMPLATE,
+  EDPP_TEMPLATE,
+  FORM_TEMPLATES,
+  type FormTemplate,
+  type FormSection,
+  type FormField,
+  type FieldType
+} from './formTemplates';
+
+// PDF generator
+export { 
+  PDFGenerator,
+  generateAndDownloadPDF,
+  previewPDF
 } from './pdfGenerator';

@@ -22,7 +22,6 @@ import { ParentForm } from './ParentForm';
 import { StudentForm } from './StudentForm';
 import { EmergencyContactForm } from './EmergencyContactForm';
 import { TemplateSelect } from '../pdf/TemplateSelect';
-import { generateCalibrationPDF } from '../../utils/pdf/coordinateCalibrator';
 import { useFormStore } from '../../stores/formStore';
 
 import type { AddressFormData, ParentFormData, EmergencyContactFormData } from '../../schemas/parent';
@@ -346,32 +345,6 @@ export const FamilyForm: React.FC = () => {
           <Group justify="space-between" mt="xl">
             <Button variant="default" onClick={prevStep} disabled={active === 0}>
               Précédent
-            </Button>
-            
-            <Button 
-              variant="light" 
-              color="orange" 
-              onClick={async () => {
-                try {
-                  console.log('Starting calibration PDF generation...');
-                  await generateCalibrationPDF();
-                  notifications.show({
-                    title: 'PDF de calibration généré',
-                    message: 'Le PDF de test a été téléchargé. Vérifiez les coordonnées.',
-                    color: 'orange',
-                    icon: <IconInfoCircle />,
-                  });
-                } catch (error) {
-                  console.error('Calibration PDF generation error:', error);
-                  notifications.show({
-                    title: 'Erreur de calibration',
-                    message: error instanceof Error ? error.message : 'Impossible de générer le PDF de calibration',
-                    color: 'red',
-                  });
-                }
-              }}
-            >
-              Test Coordonnées
             </Button>
             
             {active < 4 ? (
