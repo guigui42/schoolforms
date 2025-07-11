@@ -367,6 +367,12 @@ export const FamilyForm: React.FC = () => {
 
             <Stepper.Completed>
               <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep}>
+                    Précédent
+                  </Button>
+                </Group>
+                
                 <Notification
                   icon={<IconInfoCircle />}
                   title="Informations complètes"
