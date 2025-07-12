@@ -22,10 +22,14 @@ export default defineConfig({
         manualChunks: {
           'mantine': ['@mantine/core', '@mantine/hooks', '@mantine/form'],
           'pdf': ['pdf-lib'],
+          'pdfjs': ['pdfjs-dist'],
           'router': ['react-router-dom'],
           'store': ['zustand'],
         },
       },
     },
+  },
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
   },
 });
