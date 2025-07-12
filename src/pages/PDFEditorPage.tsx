@@ -453,6 +453,13 @@ export function PDFEditorPage() {
     // Field overlays will be re-drawn automatically via useEffect
   };
 
+  const handleFieldNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleFieldSave();
+    }
+  };
+
   const handleFieldDelete = (fieldId: string) => {
     setFields(prev => prev.filter(f => f.id !== fieldId));
     // Field overlays will be re-drawn automatically via useEffect
@@ -496,7 +503,7 @@ export function PDFEditorPage() {
       
       // Create fields with same names using the suggested approach
       for (const [fieldName, fieldList] of fieldGroups) {
-        const createdFields: any[] = [];
+        const createdFields: (import('pdf-lib').PDFTextField | import('pdf-lib').PDFCheckBox)[] = [];
         
         // If field name already exists, we'll create synchronized fields
         const fieldAlreadyExists = existingFieldNames.has(fieldName);
@@ -514,7 +521,8 @@ export function PDFEditorPage() {
           // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
           const pdfY = pageHeight - field.y - field.height;
           
-          const tempName = `${fieldName}_temp_${Date.now()}_${i}`;
+          // Use a completely unique temporary name to avoid conflicts
+          const tempName = `temp_field_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
           
           try {
             if (field.type === 'text') {
@@ -555,7 +563,9 @@ export function PDFEditorPage() {
             
             // Set the same name for all fields to synchronize them
             if (fieldDict && typeof fieldDict === 'object' && 'set' in fieldDict) {
-              (fieldDict as any).set(PDFName.of('T'), PDFString.of(fieldName));
+              // Use the exact fieldName without any modifications
+              (fieldDict as unknown as { set: (key: import('pdf-lib').PDFName, value: import('pdf-lib').PDFString) => void }).set(PDFName.of('T'), PDFString.of(fieldName));
+              console.log(`Renamed field ${index} to "${fieldName}"`);
             }
           } catch (error) {
             console.warn(`Could not rename field ${index} to "${fieldName}":`, error);
@@ -825,6 +835,7 @@ export function PDFEditorPage() {
             placeholder="Entrez le nom du champ"
             value={fieldName}
             onChange={(e) => setFieldName(e.target.value)}
+            onKeyDown={handleFieldNameKeyDown}
             required
           />
           
