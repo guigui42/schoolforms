@@ -17,11 +17,14 @@ import {
   Alert,
   SegmentedControl,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   IconUpload,
   IconTrash,
   IconDownload,
   IconInfoCircle,
+  IconCheck,
+  IconX,
 } from '@tabler/icons-react';
 import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -255,8 +258,8 @@ export function PDFEditorPage() {
       const containerWidth = container.clientWidth - 40; // padding
       const viewport = page.getViewport({ scale: 1 });
       const scaleX = containerWidth / viewport.width;
-      const scaleY = (window.innerHeight * 0.8) / viewport.height;
-      const newScale = Math.min(scaleX, scaleY, 1.5); // Allow up to 1.5x scale for bigger preview
+      const scaleY = (window.innerHeight * 0.9) / viewport.height;
+      const newScale = Math.min(scaleX, scaleY, 2.0); // Allow up to 2.0x scale for bigger preview
       
       setScale(newScale);
       
@@ -299,14 +302,14 @@ export function PDFEditorPage() {
         console.error('Error rendering page:', error);
       }
     }
-  }, []);
+  }, [existingFields.length, drawFieldOverlays]);
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
     if (pdfJsDoc) {
       renderPDFPage(pdfJsDoc, currentPage);
     }
-  }, [pdfJsDoc, currentPage, renderPDFPage]);
+  }, [pdfJsDoc, currentPage, renderPDFPage, drawFieldOverlays, existingFields.length]);
 
   // Effect to draw field overlays when fields or scale changes
   useEffect(() => {
@@ -456,6 +459,10 @@ export function PDFEditorPage() {
       const pages = await pdfWithFields.copyPages(pdfDoc, pdfDoc.getPageIndices());
       pages.forEach(page => pdfWithFields.addPage(page));
       
+      // Track field names to handle duplicates
+      const fieldNameCounts = new Map<string, number>();
+      const duplicateFieldNames: string[] = [];
+      
       // Add form fields to the PDF
       for (const field of fields) {
         const page = pdfWithFields.getPage(field.pageIndex);
@@ -464,9 +471,20 @@ export function PDFEditorPage() {
         // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
         const pdfY = pageHeight - field.y - field.height;
         
+        // Generate unique field name to handle duplicates
+        let uniqueFieldName = field.name;
+        const count = fieldNameCounts.get(field.name) || 0;
+        if (count > 0) {
+          uniqueFieldName = `${field.name}_${count + 1}`;
+          if (!duplicateFieldNames.includes(field.name)) {
+            duplicateFieldNames.push(field.name);
+          }
+        }
+        fieldNameCounts.set(field.name, count + 1);
+        
         if (field.type === 'text') {
           // Create text field
-          const textField = pdfWithFields.getForm().createTextField(field.name);
+          const textField = pdfWithFields.getForm().createTextField(uniqueFieldName);
           textField.addToPage(page, {
             x: field.x,
             y: pdfY,
@@ -477,7 +495,7 @@ export function PDFEditorPage() {
           });
         } else if (field.type === 'checkbox') {
           // Create checkbox field
-          const checkboxField = pdfWithFields.getForm().createCheckBox(field.name);
+          const checkboxField = pdfWithFields.getForm().createCheckBox(uniqueFieldName);
           checkboxField.addToPage(page, {
             x: field.x,
             y: pdfY,
@@ -501,8 +519,32 @@ export function PDFEditorPage() {
       a.click();
       URL.revokeObjectURL(url);
       
+      // Show success notification
+      notifications.show({
+        title: 'PDF sauvegardé avec succès',
+        message: `Le PDF avec ${fields.length} champs a été téléchargé.`,
+        color: 'green',
+        icon: <IconCheck size={18} />,
+      });
+      
+      // Show warning for duplicate field names
+      if (duplicateFieldNames.length > 0) {
+        notifications.show({
+          title: 'Noms de champs dupliqués détectés',
+          message: `Les champs suivants ont été renommés automatiquement : ${duplicateFieldNames.join(', ')}`,
+          color: 'orange',
+          autoClose: 8000,
+        });
+      }
+      
     } catch (error) {
       console.error('Error saving PDF with fields:', error);
+      notifications.show({
+        title: 'Erreur lors de la sauvegarde',
+        message: 'Impossible de sauvegarder le PDF. Veuillez réessayer.',
+        color: 'red',
+        icon: <IconX size={18} />,
+      });
     }
   };
 
