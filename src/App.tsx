@@ -6,6 +6,7 @@ import { PDFPreview } from './pages/PDFPreview';
 import { Settings } from './pages/Settings';
 import { PDFFormFillerTestPage } from './pages/PDFFormFillerTestPage';
 import { EDPPFormPage } from './pages/EDPPFormPage';
+import { PDFEditorPage } from './pages/PDFEditorPage';
 import { AppHeader } from './components/layout/AppHeader';
 import { AppNavbar } from './components/layout/AppNavbar';
 import { FamilyForm } from './components/forms/FamilyForm';
@@ -34,6 +35,7 @@ function App() {
           <Route path="/preview/:formType" element={<PDFPreview />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/pdf-test" element={<PDFFormFillerTestPage />} />
+          <Route path="/pdf-editor" element={<PDFEditorPage />} />
         </Routes>
       </AppShell.Main>
     </AppShell>

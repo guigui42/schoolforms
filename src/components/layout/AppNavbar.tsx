@@ -6,7 +6,8 @@ import {
   IconSettings, 
   IconUser,
   IconPdf,
-  IconTestPipe
+  IconTestPipe,
+  IconEdit
 } from '@tabler/icons-react';
 
 export function AppNavbar() {
@@ -31,6 +32,11 @@ export function AppNavbar() {
       label: 'Famille', 
       icon: IconUser, 
       path: '/family' 
+    },
+    { 
+      label: 'Éditeur PDF', 
+      icon: IconEdit, 
+      path: '/pdf-editor' 
     },
     { 
       label: 'Test PDF', 
