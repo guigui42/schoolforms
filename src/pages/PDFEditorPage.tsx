@@ -51,7 +51,6 @@ export function PDFEditorPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingMode, setDrawingMode] = useState<'text' | 'checkbox'>('text');
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [currentField, setCurrentField] = useState<PDFField | null>(null);
   const [fieldName, setFieldName] = useState('');
@@ -60,61 +59,44 @@ export function PDFEditorPage() {
   const [existingFields, setExistingFields] = useState<PDFField[]>([]);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
-  const lastRenderTimeRef = useRef<number>(0);
-  const pdfImageDataRef = useRef<ImageData | null>(null); // Cache the PDF rendering
-  const lastPreviewBoxRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null); // Track last preview box
 
   const drawField = useCallback((ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
-    // Save canvas state before drawing
-    ctx.save();
+    const x = field.x * currentScale;
+    const y = field.y * currentScale;
+    const width = field.width * currentScale;
+    const height = field.height * currentScale;
     
-    try {
-      const x = field.x * currentScale;
-      const y = field.y * currentScale;
-      const width = field.width * currentScale;
-      const height = field.height * currentScale;
-      
-      // Different colors for existing vs new fields
-      const isExisting = field.isExisting;
-      const textColor = isExisting ? '#fd7e14' : '#339af0'; // orange for existing, blue for new
-      const checkboxColor = isExisting ? '#fd7e14' : '#51cf66'; // orange for existing, green for new
-      
-      // Reset any previous drawing state
-      ctx.setLineDash([]);
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      
-      // Draw field box
-      ctx.strokeStyle = field.type === 'text' ? textColor : checkboxColor;
-      ctx.lineWidth = isExisting ? 3 : 2; // Thicker border for existing fields
-      ctx.strokeRect(x, y, width, height);
-      
-      // Fill with semi-transparent color
-      ctx.fillStyle = field.type === 'text' 
-        ? (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(51, 154, 240, 0.1)')
-        : (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(81, 207, 102, 0.1)');
-      ctx.fillRect(x, y, width, height);
-      
-      // Draw field name
-      ctx.fillStyle = '#333';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(field.name, x + 2, y - 4);
-      
-      // Add indicator for existing fields
-      if (isExisting) {
-        ctx.fillStyle = '#fd7e14';
-        ctx.font = '10px Arial';
-        ctx.fillText('(existant)', x + 2, y - 16);
-      }
-    } catch (error) {
-      console.error('Error drawing field:', error);
-    } finally {
-      // Restore canvas state
-      ctx.restore();
+    // Different colors for existing vs new fields
+    const isExisting = field.isExisting;
+    const textColor = isExisting ? '#fd7e14' : '#339af0'; // orange for existing, blue for new
+    const checkboxColor = isExisting ? '#fd7e14' : '#51cf66'; // orange for existing, green for new
+    
+    // Draw field box
+    ctx.strokeStyle = field.type === 'text' ? textColor : checkboxColor;
+    ctx.lineWidth = isExisting ? 3 : 2; // Thicker border for existing fields
+    ctx.strokeRect(x, y, width, height);
+    
+    // Fill with semi-transparent color
+    ctx.fillStyle = field.type === 'text' 
+      ? (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(51, 154, 240, 0.1)')
+      : (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(81, 207, 102, 0.1)');
+    ctx.fillRect(x, y, width, height);
+    
+    // Draw field name
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(field.name, x + 2, y - 4);
+    
+    // Add indicator for existing fields
+    if (isExisting) {
+      ctx.fillStyle = '#fd7e14';
+      ctx.font = '10px Arial';
+      ctx.fillText('(existant)', x + 2, y - 16);
     }
   }, []);
 
@@ -184,95 +166,7 @@ export function PDFEditorPage() {
     }
   }, []);
 
-  // Function to clear a specific area from the canvas by restoring PDF data
-  const clearPreviewArea = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
-    if (!pdfImageDataRef.current) return;
-    
-    // Add some padding to ensure we clear the entire area including borders and text
-    const padding = 20;
-    const clearX = Math.max(0, x - padding);
-    const clearY = Math.max(0, y - padding);
-    const clearWidth = Math.min(ctx.canvas.width - clearX, width + padding * 2);
-    const clearHeight = Math.min(ctx.canvas.height - clearY, height + padding * 2);
-    
-    try {
-      // Get the original PDF data for this specific area
-      const originalData = ctx.createImageData(clearWidth, clearHeight);
-      const sourceData = pdfImageDataRef.current;
-      
-      // Copy the original PDF data pixel by pixel for the specific area
-      for (let row = 0; row < clearHeight; row++) {
-        for (let col = 0; col < clearWidth; col++) {
-          const sourceX = clearX + col;
-          const sourceY = clearY + row;
-          
-          if (sourceX < sourceData.width && sourceY < sourceData.height) {
-            const sourceIndex = (sourceY * sourceData.width + sourceX) * 4;
-            const targetIndex = (row * clearWidth + col) * 4;
-            
-            originalData.data[targetIndex] = sourceData.data[sourceIndex];     // R
-            originalData.data[targetIndex + 1] = sourceData.data[sourceIndex + 1]; // G
-            originalData.data[targetIndex + 2] = sourceData.data[sourceIndex + 2]; // B
-            originalData.data[targetIndex + 3] = sourceData.data[sourceIndex + 3]; // A
-          }
-        }
-      }
-      
-      // Put the original data back
-      ctx.putImageData(originalData, clearX, clearY);
-    } catch (error) {
-      console.error('Error clearing preview area:', error);
-    }
-  }, []);
-
-  const drawPreview = useCallback((ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
-    // Save canvas state before drawing
-    ctx.save();
-    
-    try {
-      const x = Math.min(start.x, end.x) * currentScale;
-      const y = Math.min(start.y, end.y) * currentScale;
-      const width = Math.abs(end.x - start.x) * currentScale;
-      const height = Math.abs(end.y - start.y) * currentScale;
-      
-      // Clear the previous preview box if it exists
-      if (lastPreviewBoxRef.current) {
-        clearPreviewArea(ctx, lastPreviewBoxRef.current.x, lastPreviewBoxRef.current.y, 
-                        lastPreviewBoxRef.current.width, lastPreviewBoxRef.current.height);
-      }
-      
-      // Store current preview box position for next clear
-      lastPreviewBoxRef.current = { x, y, width, height };
-      
-      // Reset any previous drawing state
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      
-      // Draw preview rectangle
-      ctx.strokeStyle = drawingMode === 'text' ? '#339af0' : '#51cf66';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]); // Dashed line for preview
-      ctx.strokeRect(x, y, width, height);
-      
-      // Fill with semi-transparent color
-      ctx.fillStyle = drawingMode === 'text' ? 'rgba(51, 154, 240, 0.2)' : 'rgba(81, 207, 102, 0.2)';
-      ctx.fillRect(x, y, width, height);
-      
-      // Draw preview text
-      ctx.fillStyle = '#333';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillText(drawingMode === 'text' ? 'Champ texte' : 'Case à cocher', x + 2, y - 4);
-    } catch (error) {
-      console.error('Error drawing preview:', error);
-    } finally {
-      // Restore canvas state (this will reset line dash and other properties)
-      ctx.restore();
-    }
-  }, [drawingMode, clearPreviewArea]);
-
-  // Separate function to draw field overlays without re-rendering the PDF
+  // Function to draw field overlays on the main canvas
   const drawFieldOverlays = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -280,73 +174,82 @@ export function PDFEditorPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Save current canvas state
-    ctx.save();
+    // Clear only the field overlays (we'll draw on top of the PDF)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    try {
-      // Clear the entire canvas first
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Restore the cached PDF rendering if available
-      if (pdfImageDataRef.current) {
-        ctx.putImageData(pdfImageDataRef.current, 0, 0);
-      }
-      
-      // Reset drawing state to ensure clean overlay drawing
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      ctx.setLineDash([]);
-      ctx.lineWidth = 1;
-      
-      // Draw existing fields for this page
-      const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
-      pageExistingFields.forEach(field => {
-        drawField(ctx, field, scale);
-      });
-      
-      // Draw user-created fields for this page
-      const pageFields = fields.filter(f => f.pageIndex === currentPage);
-      pageFields.forEach(field => {
-        drawField(ctx, field, scale);
-      });
-      
-      // Clear the preview box tracking when doing full redraw
-      lastPreviewBoxRef.current = null;
-      
-      // Draw preview if currently drawing
-      if (isDrawing && startPos && currentPos) {
-        drawPreview(ctx, startPos, currentPos, scale);
-      }
-    } catch (error) {
-      console.error('Error drawing field overlays:', error);
-    } finally {
-      // Restore canvas state
-      ctx.restore();
+    // Re-render the PDF first
+    if (pdfJsDoc) {
+      renderPDFPage(pdfJsDoc, currentPage);
+      return; // renderPDFPage will call this function again after PDF is rendered
     }
-  }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
-
-  // Function to draw only the preview box during mouse movement (without full redraw)
-  const drawPreviewOnly = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
     
-    const ctx = canvas.getContext('2d');
+    // Draw existing fields for this page
+    const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
+    pageExistingFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+    
+    // Draw user-created fields for this page
+    const pageFields = fields.filter(f => f.pageIndex === currentPage);
+    pageFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+  }, [fields, existingFields, currentPage, scale, drawField, pdfJsDoc]);
+
+  // Function to draw only the preview on the overlay canvas
+  const drawPreview = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const overlayCanvas = overlayCanvasRef.current;
+    if (!overlayCanvas) return;
+    
+    const ctx = overlayCanvas.getContext('2d');
     if (!ctx) return;
     
-    // Only draw the preview, don't touch the PDF or existing fields
-    drawPreview(ctx, start, end, scale);
-  }, [drawPreview, scale]);
-  // Separate function to render only the PDF page (without fields)
+    // Clear the overlay canvas
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    
+    const x = Math.min(start.x, end.x) * scale;
+    const y = Math.min(start.y, end.y) * scale;
+    const width = Math.abs(end.x - start.x) * scale;
+    const height = Math.abs(end.y - start.y) * scale;
+    
+    // Draw preview rectangle
+    ctx.strokeStyle = drawingMode === 'text' ? '#339af0' : '#51cf66';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]); // Dashed line for preview
+    ctx.strokeRect(x, y, width, height);
+    
+    // Fill with semi-transparent color
+    ctx.fillStyle = drawingMode === 'text' ? 'rgba(51, 154, 240, 0.2)' : 'rgba(81, 207, 102, 0.2)';
+    ctx.fillRect(x, y, width, height);
+    
+    // Draw preview text
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.setLineDash([]); // Reset line dash for text
+    ctx.fillText(drawingMode === 'text' ? 'Champ texte' : 'Case à cocher', x + 2, y - 4);
+  }, [drawingMode, scale]);
+
+  // Function to clear the overlay canvas
+  const clearPreview = useCallback(() => {
+    const overlayCanvas = overlayCanvasRef.current;
+    if (!overlayCanvas) return;
+    
+    const ctx = overlayCanvas.getContext('2d');
+    if (!ctx) return;
+    
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  }, []);
+  // Function to render PDF page and setup overlay canvas
   const renderPDFPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
     if (!pdfJsDocument) return;
-    
-    // Clear the preview box tracking when rendering a new page
-    lastPreviewBoxRef.current = null;
     
     try {
       const page = await pdfJsDocument.getPage(pageIndex + 1); // PDF.js uses 1-based indexing
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      const overlayCanvas = overlayCanvasRef.current;
+      if (!canvas || !overlayCanvas) return;
       
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -363,20 +266,19 @@ export function PDFEditorPage() {
       
       setScale(newScale);
       
-      // Set canvas size
+      // Set canvas size for both canvases
       const scaledViewport = page.getViewport({ scale: newScale });
       canvas.width = scaledViewport.width;
       canvas.height = scaledViewport.height;
+      overlayCanvas.width = scaledViewport.width;
+      overlayCanvas.height = scaledViewport.height;
       
-      // Clear canvas completely
+      // Clear both canvases
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Reset canvas state
-      ctx.save();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 1;
-      ctx.setLineDash([]);
-      ctx.lineWidth = 1;
+      const overlayCtx = overlayCanvas.getContext('2d');
+      if (overlayCtx) {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
       
       // Cancel any previous render operations
       if (renderTaskRef.current) {
@@ -394,17 +296,6 @@ export function PDFEditorPage() {
       
       await renderTask.promise;
       
-      // Cache the PDF rendering only after successful render
-      try {
-        pdfImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      } catch (cacheError) {
-        console.warn('Failed to cache PDF image data:', cacheError);
-        pdfImageDataRef.current = null;
-      }
-      
-      // Restore canvas state
-      ctx.restore();
-      
       // After PDF renders, draw the field overlays
       drawFieldOverlays();
       
@@ -412,22 +303,15 @@ export function PDFEditorPage() {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', error);
       }
-      // Clear cached data on error
-      pdfImageDataRef.current = null;
     }
   }, [drawFieldOverlays]);
-
-  // Keep the original renderPage function for backward compatibility
-  const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
-    await renderPDFPage(pdfJsDocument, pageIndex);
-  }, [renderPDFPage]);
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
     if (pdfJsDoc) {
-      renderPage(pdfJsDoc, currentPage);
+      renderPDFPage(pdfJsDoc, currentPage);
     }
-  }, [pdfJsDoc, currentPage, renderPage]);
+  }, [pdfJsDoc, currentPage, renderPDFPage]);
 
   // Cleanup render task on unmount
   useEffect(() => {
@@ -435,10 +319,6 @@ export function PDFEditorPage() {
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
-      // Clear cached PDF image data
-      pdfImageDataRef.current = null;
-      // Clear preview box tracking
-      lastPreviewBoxRef.current = null;
     };
   }, []);
 
@@ -448,9 +328,6 @@ export function PDFEditorPage() {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      
-      // Clear the cached PDF image data when loading a new PDF
-      pdfImageDataRef.current = null;
       
       // Load with pdf-lib for form field creation
       const pdfLibDoc = await PDFDocument.load(arrayBuffer);
@@ -484,7 +361,6 @@ export function PDFEditorPage() {
     const y = (e.clientY - rect.top) / scale;
     
     setStartPos({ x, y });
-    setCurrentPos({ x, y });
     setIsDrawing(true);
   };
 
@@ -498,16 +374,8 @@ export function PDFEditorPage() {
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
     
-    setCurrentPos({ x, y });
-    
-    // Throttle the re-rendering to prevent excessive redraws
-    const now = Date.now();
-    if (now - lastRenderTimeRef.current > 16) { // Max 60fps
-      lastRenderTimeRef.current = now;
-      
-      // Only draw the preview box, don't touch the PDF or other fields
-      drawPreviewOnly(startPos, { x, y });
-    }
+    // Draw preview on overlay canvas - no throttling needed as overlay is separate
+    drawPreview(startPos, { x, y });
   };
 
   const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -520,15 +388,8 @@ export function PDFEditorPage() {
     const endX = (e.clientX - rect.left) / scale;
     const endY = (e.clientY - rect.top) / scale;
     
-    // Clear the preview box since we're done drawing
-    if (lastPreviewBoxRef.current) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        clearPreviewArea(ctx, lastPreviewBoxRef.current.x, lastPreviewBoxRef.current.y, 
-                        lastPreviewBoxRef.current.width, lastPreviewBoxRef.current.height);
-      }
-      lastPreviewBoxRef.current = null;
-    }
+    // Clear the overlay canvas
+    clearPreview();
     
     const x = Math.min(startPos.x, endX);
     const y = Math.min(startPos.y, endY);
@@ -558,7 +419,6 @@ export function PDFEditorPage() {
     
     setIsDrawing(false);
     setStartPos(null);
-    setCurrentPos(null);
   };
 
   const handleFieldSave = () => {
@@ -582,12 +442,8 @@ export function PDFEditorPage() {
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    // Clear the cached PDF image data when changing pages
-    pdfImageDataRef.current = null;
-    // Clear preview box tracking
-    lastPreviewBoxRef.current = null;
     if (pdfJsDoc) {
-      renderPage(pdfJsDoc, newPage);
+      renderPDFPage(pdfJsDoc, newPage);
     }
   };
 
@@ -766,9 +622,19 @@ export function PDFEditorPage() {
         <Grid>
           <Grid.Col span={{ base: 12, md: 8 }}>
             <Paper p="md">
-              <div ref={containerRef} style={{ textAlign: 'center' }}>
+              <div ref={containerRef} style={{ textAlign: 'center', position: 'relative' }}>
                 <canvas
                   ref={canvasRef}
+                  style={{
+                    border: '1px solid #ccc',
+                    maxWidth: '100%',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                  }}
+                />
+                <canvas
+                  ref={overlayCanvasRef}
                   onMouseDown={handleCanvasMouseDown}
                   onMouseMove={handleCanvasMouseMove}
                   onMouseUp={handleCanvasMouseUp}
@@ -776,6 +642,10 @@ export function PDFEditorPage() {
                     border: '1px solid #ccc',
                     cursor: 'crosshair',
                     maxWidth: '100%',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    pointerEvents: 'auto',
                   }}
                 />
               </div>
