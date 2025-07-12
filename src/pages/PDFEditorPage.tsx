@@ -26,6 +26,10 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react';
 import { PDFDocument } from 'pdf-lib';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface PDFField {
   id: string;
@@ -38,16 +42,10 @@ interface PDFField {
   pageIndex: number;
 }
 
-interface PDFFieldDefinition {
-  fileName: string;
-  fields: PDFField[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 export function PDFEditorPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfDoc, setPdfDoc] = useState<PDFDocument | null>(null);
+  const [pdfJsDoc, setPdfJsDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [fields, setFields] = useState<PDFField[]>([]);
@@ -85,14 +83,11 @@ export function PDFEditorPage() {
     ctx.fillText(field.name, x + 2, y - 4);
   };
 
-  const renderPage = useCallback(async (doc: PDFDocument, pageIndex: number) => {
-    if (!doc) return;
+  const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
+    if (!pdfJsDocument) return;
     
     try {
-      const page = doc.getPage(pageIndex);
-      const { width, height } = page.getSize();
-      
-      // Create a canvas to render the page
+      const page = await pdfJsDocument.getPage(pageIndex + 1); // PDF.js uses 1-based indexing
       const canvas = canvasRef.current;
       if (!canvas) return;
       
@@ -104,36 +99,28 @@ export function PDFEditorPage() {
       if (!container) return;
       
       const containerWidth = container.clientWidth - 40; // padding
-      const scaleX = containerWidth / width;
-      const scaleY = (window.innerHeight * 0.7) / height;
+      const viewport = page.getViewport({ scale: 1 });
+      const scaleX = containerWidth / viewport.width;
+      const scaleY = (window.innerHeight * 0.7) / viewport.height;
       const newScale = Math.min(scaleX, scaleY, 1);
       
       setScale(newScale);
       
-      canvas.width = width * newScale;
-      canvas.height = height * newScale;
+      // Set canvas size
+      const scaledViewport = page.getViewport({ scale: newScale });
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
       
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw a white background
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Render PDF page
+      const renderContext = {
+        canvasContext: ctx,
+        viewport: scaledViewport,
+      };
       
-      // Draw page outline
-      ctx.strokeStyle = '#ccc';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, 0, canvas.width, canvas.height);
-      
-      // Add text indicating this is a PDF page
-      ctx.fillStyle = '#666';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        `Page ${pageIndex + 1} - Cliquez pour dessiner des champs`,
-        canvas.width / 2,
-        canvas.height / 2
-      );
+      await page.render(renderContext).promise;
       
       // Draw existing fields for this page
       const pageFields = fields.filter(f => f.pageIndex === pageIndex);
@@ -148,10 +135,10 @@ export function PDFEditorPage() {
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
-    if (pdfDoc) {
-      renderPage(pdfDoc, currentPage);
+    if (pdfJsDoc) {
+      renderPage(pdfJsDoc, currentPage);
     }
-  }, [pdfDoc, currentPage, renderPage]);
+  }, [pdfJsDoc, currentPage, renderPage]);
 
   const loadPDF = useCallback(async (file: File | null) => {
     if (!file) return;
@@ -159,16 +146,23 @@ export function PDFEditorPage() {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const doc = await PDFDocument.load(arrayBuffer);
-      setPdfDoc(doc);
+      
+      // Load with pdf-lib for form field creation
+      const pdfLibDoc = await PDFDocument.load(arrayBuffer);
+      setPdfDoc(pdfLibDoc);
+      
+      // Load with PDF.js for rendering
+      const pdfJsDocument = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setPdfJsDoc(pdfJsDocument);
+      
       setPdfFile(file);
-      setTotalPages(doc.getPageCount());
+      setTotalPages(pdfJsDocument.numPages);
       setCurrentPage(0);
       setFields([]);
       
       // Wait for next tick to ensure DOM is updated
       setTimeout(() => {
-        renderPage(doc, 0);
+        renderPage(pdfJsDocument, 0);
       }, 100);
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -239,56 +233,84 @@ export function PDFEditorPage() {
     setFieldName('');
     
     // Re-render the page with new field
-    if (pdfDoc) {
-      renderPage(pdfDoc, currentPage);
+    if (pdfJsDoc) {
+      renderPage(pdfJsDoc, currentPage);
     }
   };
 
   const handleFieldDelete = (fieldId: string) => {
     setFields(prev => prev.filter(f => f.id !== fieldId));
-    if (pdfDoc) {
-      renderPage(pdfDoc, currentPage);
+    if (pdfJsDoc) {
+      renderPage(pdfJsDoc, currentPage);
     }
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    if (pdfDoc) {
-      renderPage(pdfDoc, newPage);
+    if (pdfJsDoc) {
+      renderPage(pdfJsDoc, newPage);
     }
   };
 
-  const saveFieldDefinitions = () => {
-    if (!pdfFile) return;
+  const savePDFWithFields = async () => {
+    if (!pdfFile || !pdfDoc) return;
     
-    const definition: PDFFieldDefinition = {
-      fileName: pdfFile.name,
-      fields,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    const existingDefinitions = JSON.parse(
-      localStorage.getItem('pdf-field-definitions') || '[]'
-    );
-    
-    const updatedDefinitions = existingDefinitions.filter(
-      (def: PDFFieldDefinition) => def.fileName !== pdfFile.name
-    );
-    
-    updatedDefinitions.push(definition);
-    localStorage.setItem('pdf-field-definitions', JSON.stringify(updatedDefinitions));
-    
-    // Download as JSON file
-    const blob = new Blob([JSON.stringify(definition, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${pdfFile.name.replace('.pdf', '')}-fields.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      // Create a copy of the PDF document
+      const pdfWithFields = await PDFDocument.create();
+      
+      // Copy all pages from original PDF
+      const pages = await pdfWithFields.copyPages(pdfDoc, pdfDoc.getPageIndices());
+      pages.forEach(page => pdfWithFields.addPage(page));
+      
+      // Add form fields to the PDF
+      for (const field of fields) {
+        const page = pdfWithFields.getPage(field.pageIndex);
+        const { height: pageHeight } = page.getSize();
+        
+        // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
+        const pdfY = pageHeight - field.y - field.height;
+        
+        if (field.type === 'text') {
+          // Create text field
+          const textField = pdfWithFields.getForm().createTextField(field.name);
+          textField.addToPage(page, {
+            x: field.x,
+            y: pdfY,
+            width: field.width,
+            height: field.height,
+            borderColor: { r: 0, g: 0, b: 0 },
+            borderWidth: 1,
+          });
+        } else if (field.type === 'checkbox') {
+          // Create checkbox field
+          const checkboxField = pdfWithFields.getForm().createCheckBox(field.name);
+          checkboxField.addToPage(page, {
+            x: field.x,
+            y: pdfY,
+            width: field.width,
+            height: field.height,
+            borderColor: { r: 0, g: 0, b: 0 },
+            borderWidth: 1,
+          });
+        }
+      }
+      
+      // Save the PDF with embedded fields
+      const pdfBytes = await pdfWithFields.save();
+      
+      // Download the PDF
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pdfFile.name.replace('.pdf', '')}-with-fields.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error saving PDF with fields:', error);
+    }
   };
 
   return (
@@ -298,7 +320,7 @@ export function PDFEditorPage() {
       </Title>
       
       <Text size="lg" mb="xl" c="dimmed">
-        Téléchargez un PDF et dessinez des zones pour définir les champs de formulaire.
+        Téléchargez un PDF et dessinez des zones pour définir les champs de formulaire. Le PDF sera sauvegardé avec les champs intégrés.
       </Text>
 
       <Alert icon={<IconInfoCircle size={16} />} title="Instructions" mb="lg">
@@ -307,7 +329,7 @@ export function PDFEditorPage() {
           2. Sélectionnez le type de champ (texte ou case à cocher)<br/>
           3. Cliquez et glissez sur le PDF pour dessiner la zone du champ<br/>
           4. Donnez un nom au champ<br/>
-          5. Sauvegardez les définitions des champs
+          5. Sauvegardez le PDF avec les champs intégrés
         </Text>
       </Alert>
 
@@ -340,15 +362,15 @@ export function PDFEditorPage() {
           {fields.length > 0 && (
             <Button
               leftSection={<IconDownload size={16} />}
-              onClick={saveFieldDefinitions}
+              onClick={savePDFWithFields}
               variant="filled"
             >
-              Sauvegarder les champs
+              Sauvegarder PDF avec champs
             </Button>
           )}
         </Group>
         
-        {pdfDoc && (
+        {pdfJsDoc && (
           <Group mb="md">
             <Select
               label="Type de champ"
@@ -391,7 +413,7 @@ export function PDFEditorPage() {
         )}
       </Paper>
 
-      {pdfDoc && (
+      {pdfJsDoc && (
         <Grid>
           <Grid.Col span={{ base: 12, md: 8 }}>
             <Paper p="md">
