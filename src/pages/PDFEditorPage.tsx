@@ -166,22 +166,16 @@ export function PDFEditorPage() {
     }
   }, []);
 
-  // Function to draw field overlays on the main canvas
+  // Function to draw field overlays on the overlay canvas
   const drawFieldOverlays = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const overlayCanvas = overlayCanvasRef.current;
+    if (!overlayCanvas) return;
     
-    const ctx = canvas.getContext('2d');
+    const ctx = overlayCanvas.getContext('2d');
     if (!ctx) return;
     
-    // Clear only the field overlays (we'll draw on top of the PDF)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Re-render the PDF first
-    if (pdfJsDoc) {
-      renderPDFPage(pdfJsDoc, currentPage);
-      return; // renderPDFPage will call this function again after PDF is rendered
-    }
+    // Clear the overlay canvas
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
     
     // Draw existing fields for this page
     const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
@@ -194,7 +188,7 @@ export function PDFEditorPage() {
     pageFields.forEach(field => {
       drawField(ctx, field, scale);
     });
-  }, [fields, existingFields, currentPage, scale, drawField, pdfJsDoc]);
+  }, [fields, existingFields, currentPage, scale, drawField]);
 
   // Function to draw only the preview on the overlay canvas
   const drawPreview = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
@@ -273,19 +267,15 @@ export function PDFEditorPage() {
       overlayCanvas.width = scaledViewport.width;
       overlayCanvas.height = scaledViewport.height;
       
-      // Clear both canvases
+      // Clear main canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const overlayCtx = overlayCanvas.getContext('2d');
-      if (overlayCtx) {
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-      }
       
       // Cancel any previous render operations
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
       
-      // Render PDF page
+      // Render PDF page on main canvas
       const renderContext = {
         canvasContext: ctx,
         viewport: scaledViewport,
@@ -296,15 +286,14 @@ export function PDFEditorPage() {
       
       await renderTask.promise;
       
-      // After PDF renders, draw the field overlays
-      drawFieldOverlays();
+      // PDF is now rendered, no need to call drawFieldOverlays here
       
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', error);
       }
     }
-  }, [drawFieldOverlays]);
+  }, []);
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
@@ -312,6 +301,13 @@ export function PDFEditorPage() {
       renderPDFPage(pdfJsDoc, currentPage);
     }
   }, [pdfJsDoc, currentPage, renderPDFPage]);
+
+  // Effect to draw field overlays when fields or scale changes
+  useEffect(() => {
+    if (pdfJsDoc && scale > 0) {
+      drawFieldOverlays();
+    }
+  }, [fields, existingFields, currentPage, scale, drawFieldOverlays, pdfJsDoc]);
 
   // Cleanup render task on unmount
   useEffect(() => {
@@ -430,21 +426,17 @@ export function PDFEditorPage() {
     setCurrentField(null);
     setFieldName('');
     
-    // Re-render the field overlays with new field
-    drawFieldOverlays();
+    // Field overlays will be re-drawn automatically via useEffect
   };
 
   const handleFieldDelete = (fieldId: string) => {
     setFields(prev => prev.filter(f => f.id !== fieldId));
-    // Re-render the field overlays without the deleted field
-    drawFieldOverlays();
+    // Field overlays will be re-drawn automatically via useEffect
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
-    if (pdfJsDoc) {
-      renderPDFPage(pdfJsDoc, newPage);
-    }
+    // PDF rendering will be handled automatically via useEffect
   };
 
   const savePDFWithFields = async () => {
