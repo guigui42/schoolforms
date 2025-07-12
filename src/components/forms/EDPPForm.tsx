@@ -10,22 +10,26 @@ import {
   Text,
   Progress,
   Notification,
-  Tabs
+  Badge
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconInfoCircle } from '@tabler/icons-react';
+import { IconCheck, IconInfoCircle, IconSchool, IconMedicalCross, IconActivity, IconCalendar, IconShield } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
+// Import existing forms
 import { AddressForm } from './AddressForm';
 import { ParentForm } from './ParentForm';
 import { StudentForm } from './StudentForm';
 import { EmergencyContactForm } from './EmergencyContactForm';
+
+// Import EDPP-specific forms
 import { EDPPMedicalForm } from './EDPPMedicalForm';
 import { EDPPActivitiesForm } from './EDPPActivitiesForm';
 import { EDPPScheduleForm } from './EDPPScheduleForm';
 import { EDPPAuthorizationsForm } from './EDPPAuthorizationsForm';
+
 import { TemplateSelect } from '../pdf/TemplateSelect';
 import { useFormStore } from '../../stores/formStore';
 
@@ -34,7 +38,7 @@ import type { StudentFormData } from '../../schemas/student';
 import type { EDPPMedicalInfo, EDPPActivity, EDPPSchedule, EDPPAuthorizations } from '../../schemas/edpp';
 import type { Family } from '../../types/forms';
 
-export const FamilyForm: React.FC = () => {
+export const EDPPForm: React.FC = () => {
   const [active, setActive] = useState(0);
   
   // Get store functions
@@ -101,7 +105,7 @@ export const FamilyForm: React.FC = () => {
     },
   });
 
-  // Initialize student form
+  // Initialize student form with additional EDPP fields
   const studentForm = useForm<StudentFormData>({
     initialValues: {
       id: currentFamily?.students?.[0]?.id || uuidv4(),
@@ -150,7 +154,69 @@ export const FamilyForm: React.FC = () => {
     },
   });
 
-  // Auto-save on form changes
+  // Initialize EDPP-specific forms
+  const medicalForm = useForm<EDPPMedicalInfo>({
+    initialValues: {
+      allergies: [],
+      medications: [],
+      conditions: [],
+      notes: '',
+      doctorName: '',
+      doctorPhone: '',
+      insuranceNumber: '',
+      vaccinationUpToDate: false,
+      specialDiet: false,
+      specialDietDetails: '',
+      pai: false,
+      paiDetails: '',
+    },
+  });
+
+  const activitiesForm = useForm<{ activities: EDPPActivity[] }>({
+    initialValues: {
+      activities: [],
+    },
+  });
+
+  const scheduleForm = useForm<EDPPSchedule>({
+    initialValues: {
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      autumnHolidays: false,
+      winterHolidays: false,
+      springHolidays: false,
+      summerHolidays: false,
+      morning: false,
+      lunchTime: false,
+      afternoon: false,
+      pedagogicalDays: false,
+      notes: '',
+    },
+  });
+
+  const authorizationsForm = useForm<EDPPAuthorizations>({
+    initialValues: {
+      photoAuthorization: false,
+      videoAuthorization: false,
+      socialMediaAuthorization: false,
+      pressAuthorization: false,
+      swimmingAuthorization: false,
+      outdoorActivitiesAuthorization: false,
+      transportAuthorization: false,
+      walkingExcursionAuthorization: false,
+      medicationAuthorization: false,
+      emergencyMedicalAuthorization: false,
+      firstAidAuthorization: false,
+      leaveAloneAuthorization: false,
+      pickupByOthersAuthorization: false,
+      authorizedPickupPersons: [],
+    },
+  });
+
+  // Auto-save functionality
   useEffect(() => {
     const handleFormChange = () => {
       if (addressForm.isValid() || parentForm.isValid() || studentForm.isValid() || emergencyContactForm.isValid()) {
@@ -158,9 +224,7 @@ export const FamilyForm: React.FC = () => {
       }
     };
 
-    // Save after a delay to avoid too many saves
     const timeoutId = setTimeout(handleFormChange, 1000);
-    
     return () => clearTimeout(timeoutId);
   }, [addressForm.values, parentForm.values, studentForm.values, emergencyContactForm.values]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -193,14 +257,22 @@ export const FamilyForm: React.FC = () => {
   // Step validation
   const isStepValid = (step: number): boolean => {
     switch (step) {
-      case 0: // Address
-        return addressForm.isValid();
-      case 1: // Parent
-        return parentForm.isValid();
-      case 2: // Student
+      case 0: // Student
         return studentForm.isValid();
+      case 1: // Parents
+        return parentForm.isValid();
+      case 2: // Address
+        return addressForm.isValid();
       case 3: // Emergency Contact
         return emergencyContactForm.isValid();
+      case 4: // Medical
+        return medicalForm.isValid();
+      case 5: // Activities
+        return activitiesForm.isValid();
+      case 6: // Schedule
+        return scheduleForm.isValid();
+      case 7: // Authorizations
+        return authorizationsForm.isValid();
       default:
         return false;
     }
@@ -218,39 +290,65 @@ export const FamilyForm: React.FC = () => {
     if (addressForm.isValid() && parentForm.isValid() && studentForm.isValid() && emergencyContactForm.isValid()) {
       saveToStore();
       notifications.show({
-        title: 'Données sauvegardées',
-        message: 'Les informations familiales ont été enregistrées avec succès',
+        title: 'Inscription EDPP sauvegardée',
+        message: 'Votre dossier d\'inscription EDPP a été enregistré avec succès',
         color: 'green',
         icon: <IconCheck size={16} />,
       });
-      console.log('Family data saved:', {
+      console.log('EDPP form data saved:', {
         address: addressForm.values,
         parent: parentForm.values,
         student: studentForm.values,
         emergencyContact: emergencyContactForm.values,
-        currentFamily: currentFamily
+        medical: medicalForm.values,
+        activities: activitiesForm.values,
+        schedule: scheduleForm.values,
+        authorizations: authorizationsForm.values,
       });
     }
   };
 
   const handlePDFGenerated = (templateId: string) => {
-    console.log(`PDF generated for template: ${templateId}`);
-    // Optionally handle post-generation actions
+    console.log(`PDF EDPP generated for template: ${templateId}`);
   };
 
-  const progress = ((active + 1) / 5) * 100;
+  const progress = ((active + 1) / 9) * 100;
+
+  const getStepIcon = (stepIndex: number) => {
+    if (isStepValid(stepIndex)) return <IconCheck />;
+    
+    const icons = [
+      <IconSchool key="student" />,
+      <IconInfoCircle key="parent" />,
+      <IconInfoCircle key="address" />,
+      <IconInfoCircle key="emergency" />,
+      <IconMedicalCross key="medical" />,
+      <IconActivity key="activities" />,
+      <IconCalendar key="schedule" />,
+      <IconShield key="authorizations" />,
+    ];
+    
+    return icons[stepIndex];
+  };
 
   return (
     <Container size="lg">
       <Stack gap="xl">
         <div>
-          <Title order={1} mb="md">
-            Informations familiales
-          </Title>
-          <Text c="dimmed" size="lg">
-            Remplissez les informations de votre famille une seule fois. 
-            Elles seront automatiquement utilisées dans tous les formulaires scolaires.
-          </Text>
+          <Group gap="sm" mb="md">
+            <IconSchool size={32} />
+            <div>
+              <Title order={1}>
+                Inscription EDPP 2025-2026
+              </Title>
+              <Text c="dimmed" size="lg">
+                École de Plein Air - Dossier d'inscription complet
+              </Text>
+            </div>
+          </Group>
+          <Badge color="blue" size="lg" mb="md">
+            Année scolaire 2025-2026
+          </Badge>
         </div>
 
         <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -258,9 +356,9 @@ export const FamilyForm: React.FC = () => {
           
           <Stepper active={active} onStepClick={setActive} allowNextStepsSelect={false}>
             <Stepper.Step 
-              label="Adresse" 
-              description="Adresse du domicile"
-              icon={isStepValid(0) ? <IconCheck /> : undefined}
+              label="Enfant" 
+              description="Identité"
+              icon={getStepIcon(0)}
               color={isStepValid(0) ? "green" : undefined}
             >
               <Stack gap="md">
@@ -269,7 +367,63 @@ export const FamilyForm: React.FC = () => {
                     Précédent
                   </Button>
                   
-                  {active < 4 ? (
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <StudentForm
+                  form={studentForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Parents" 
+              description="Responsables"
+              icon={getStepIcon(1)}
+              color={isStepValid(1) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <ParentForm
+                  form={parentForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Adresse" 
+              description="Domicile principal"
+              icon={getStepIcon(2)}
+              color={isStepValid(2) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
                     <Button 
                       onClick={nextStep}
                       disabled={!isStepValid(active)}
@@ -288,65 +442,9 @@ export const FamilyForm: React.FC = () => {
             </Stepper.Step>
 
             <Stepper.Step 
-              label="Parent" 
-              description="Informations du parent/tuteur"
-              icon={isStepValid(1) ? <IconCheck /> : undefined}
-              color={isStepValid(1) ? "green" : undefined}
-            >
-              <Stack gap="md">
-                <Group justify="space-between" mb="md">
-                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
-                    Précédent
-                  </Button>
-                  
-                  {active < 4 ? (
-                    <Button 
-                      onClick={nextStep}
-                      disabled={!isStepValid(active)}
-                    >
-                      Suivant
-                    </Button>
-                  ) : null}
-                </Group>
-                
-                <ParentForm
-                  form={parentForm}
-                />
-              </Stack>
-            </Stepper.Step>
-
-            <Stepper.Step 
-              label="Enfant" 
-              description="Informations de l'enfant"
-              icon={isStepValid(2) ? <IconCheck /> : undefined}
-              color={isStepValid(2) ? "green" : undefined}
-            >
-              <Stack gap="md">
-                <Group justify="space-between" mb="md">
-                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
-                    Précédent
-                  </Button>
-                  
-                  {active < 4 ? (
-                    <Button 
-                      onClick={nextStep}
-                      disabled={!isStepValid(active)}
-                    >
-                      Suivant
-                    </Button>
-                  ) : null}
-                </Group>
-                
-                <StudentForm
-                  form={studentForm}
-                />
-              </Stack>
-            </Stepper.Step>
-
-            <Stepper.Step 
-              label="Contact d'urgence" 
-              description="Personne à contacter en cas d'urgence"
-              icon={isStepValid(3) ? <IconCheck /> : undefined}
+              label="Urgence" 
+              description="Contact d'urgence"
+              icon={getStepIcon(3)}
               color={isStepValid(3) ? "green" : undefined}
             >
               <Stack gap="md">
@@ -355,7 +453,7 @@ export const FamilyForm: React.FC = () => {
                     Précédent
                   </Button>
                   
-                  {active < 4 ? (
+                  {active < 8 ? (
                     <Button 
                       onClick={nextStep}
                       disabled={!isStepValid(active)}
@@ -371,6 +469,118 @@ export const FamilyForm: React.FC = () => {
               </Stack>
             </Stepper.Step>
 
+            <Stepper.Step 
+              label="Médical" 
+              description="Santé et besoins"
+              icon={getStepIcon(4)}
+              color={isStepValid(4) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <EDPPMedicalForm
+                  form={medicalForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Activités" 
+              description="Sélection EDPP"
+              icon={getStepIcon(5)}
+              color={isStepValid(5) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <EDPPActivitiesForm
+                  form={activitiesForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Horaires" 
+              description="Préférences"
+              icon={getStepIcon(6)}
+              color={isStepValid(6) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <EDPPScheduleForm
+                  form={scheduleForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
+            <Stepper.Step 
+              label="Autorisations" 
+              description="Permissions"
+              icon={getStepIcon(7)}
+              color={isStepValid(7) ? "green" : undefined}
+            >
+              <Stack gap="md">
+                <Group justify="space-between" mb="md">
+                  <Button variant="default" onClick={prevStep} disabled={active === 0}>
+                    Précédent
+                  </Button>
+                  
+                  {active < 8 ? (
+                    <Button 
+                      onClick={nextStep}
+                      disabled={!isStepValid(active)}
+                    >
+                      Suivant
+                    </Button>
+                  ) : null}
+                </Group>
+                
+                <EDPPAuthorizationsForm
+                  form={authorizationsForm}
+                />
+              </Stack>
+            </Stepper.Step>
+
             <Stepper.Completed>
               <Stack gap="md">
                 <Group justify="space-between" mb="md">
@@ -381,19 +591,19 @@ export const FamilyForm: React.FC = () => {
                 
                 <Notification
                   icon={<IconInfoCircle />}
-                  title="Informations complètes"
+                  title="Dossier d'inscription EDPP complet"
                   color="green"
                   withCloseButton={false}
                 >
-                  Toutes les informations familiales ont été remplies avec succès. 
-                  Vous pouvez maintenant générer vos formulaires scolaires automatiquement.
+                  Félicitations ! Vous avez rempli toutes les sections du dossier d'inscription EDPP. 
+                  Vous pouvez maintenant sauvegarder votre dossier et générer le PDF officiel.
                 </Notification>
                 
                 <Button size="lg" onClick={handleSubmit}>
-                  Enregistrer les informations familiales
+                  Enregistrer le dossier EDPP
                 </Button>
                 
-                {/* Create family object for PDF generation */}
+                {/* Generate PDF for EDPP */}
                 {(() => {
                   const tempFamily = {
                     id: currentFamily?.id || uuidv4(),

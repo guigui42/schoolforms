@@ -38,7 +38,7 @@ export function Dashboard() {
 
             <Button
               component={Link}
-              to="/form/edpp"
+              to="/edpp"
               leftSection={<IconFileText size={16} />}
               variant="light"
               fullWidth

@@ -24,7 +24,7 @@ export function AppNavbar() {
       path: '/forms',
       children: [
         { label: 'Périscolaire', path: '/form/periscolaire' },
-        { label: 'EDPP', path: '/form/edpp' },
+        { label: 'EDPP', path: '/edpp' },
       ]
     },
     { 
