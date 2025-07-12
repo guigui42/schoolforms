@@ -248,15 +248,15 @@ export function PDFEditorPage() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       
-      // Calculate scale to fit container
+      // Calculate scale to fit container - make PDF bigger
       const container = containerRef.current;
       if (!container) return;
       
       const containerWidth = container.clientWidth - 40; // padding
       const viewport = page.getViewport({ scale: 1 });
       const scaleX = containerWidth / viewport.width;
-      const scaleY = (window.innerHeight * 0.7) / viewport.height;
-      const newScale = Math.min(scaleX, scaleY, 1);
+      const scaleY = (window.innerHeight * 0.8) / viewport.height;
+      const newScale = Math.min(scaleX, scaleY, 1.5); // Allow up to 1.5x scale for bigger preview
       
       setScale(newScale);
       
@@ -286,7 +286,13 @@ export function PDFEditorPage() {
       
       await renderTask.promise;
       
-      // PDF is now rendered, no need to call drawFieldOverlays here
+      // After PDF is rendered, draw field overlays if we have existing fields
+      if (existingFields.length > 0) {
+        // Small delay to ensure the PDF is fully rendered
+        setTimeout(() => {
+          drawFieldOverlays();
+        }, 100);
+      }
       
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
@@ -650,6 +656,39 @@ export function PDFEditorPage() {
                 Champs définis ({fields.length + existingFields.length})
               </Title>
               
+              {/* Show new fields first */}
+              {fields.length > 0 && (
+                <div>
+                  <Text size="sm" fw={500} mb="xs" c="blue">
+                    Nouveaux champs ({fields.length})
+                  </Text>
+                  <Stack gap="xs" mb="md">
+                    {fields.map((field) => (
+                      <Card key={field.id} p="xs" withBorder>
+                        <Group justify="space-between">
+                          <div>
+                            <Text size="sm" fw={500}>
+                              {field.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
+                            </Text>
+                          </div>
+                          <ActionIcon
+                            color="red"
+                            variant="light"
+                            size="sm"
+                            onClick={() => handleFieldDelete(field.id)}
+                          >
+                            <IconTrash size={12} />
+                          </ActionIcon>
+                        </Group>
+                      </Card>
+                    ))}
+                  </Stack>
+                </div>
+              )}
+              
               {existingFields.length > 0 && (
                 <div>
                   <Text size="sm" fw={500} mb="xs" c="orange">
@@ -677,44 +716,10 @@ export function PDFEditorPage() {
                 </div>
               )}
               
-              {fields.length === 0 && existingFields.length === 0 ? (
+              {fields.length === 0 && existingFields.length === 0 && (
                 <Text c="dimmed" size="sm">
                   Aucun champ défini. Dessinez des zones sur le PDF pour créer des champs.
                 </Text>
-              ) : fields.length === 0 ? (
-                <Text c="dimmed" size="sm">
-                  Aucun nouveau champ créé. Dessinez des zones sur le PDF pour créer des champs.
-                </Text>
-              ) : (
-                <div>
-                  <Text size="sm" fw={500} mb="xs" c="blue">
-                    Nouveaux champs ({fields.length})
-                  </Text>
-                  <Stack gap="xs">
-                    {fields.map((field) => (
-                      <Card key={field.id} p="xs" withBorder>
-                        <Group justify="space-between">
-                          <div>
-                            <Text size="sm" fw={500}>
-                              {field.name}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
-                            </Text>
-                          </div>
-                          <ActionIcon
-                            color="red"
-                            variant="light"
-                            size="sm"
-                            onClick={() => handleFieldDelete(field.id)}
-                          >
-                            <IconTrash size={12} />
-                          </ActionIcon>
-                        </Group>
-                      </Card>
-                    ))}
-                  </Stack>
-                </div>
               )}
             </Paper>
           </Grid.Col>
