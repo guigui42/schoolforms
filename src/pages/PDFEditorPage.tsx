@@ -378,7 +378,7 @@ export function PDFEditorPage() {
       setTotalPages(pdfJsDocument.numPages);
       setCurrentPage(0);
       setFields([]);
-      setOriginalExistingFieldsCount(0);
+      // originalExistingFieldsCount is set by extractExistingFields - don't reset it here
       
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -483,9 +483,6 @@ export function PDFEditorPage() {
   const handleExistingFieldDelete = (fieldId: string) => {
     setExistingFields(prev => prev.filter(f => f.id !== fieldId));
     // Field overlays will be re-drawn automatically via useEffect
-    console.log('Deleted existing field:', fieldId);
-    console.log('Remaining existing fields:', existingFields.filter(f => f.id !== fieldId).length);
-    console.log('Original existing fields count:', originalExistingFieldsCount);
   };
 
   const handlePageChange = (newPage: number) => {
