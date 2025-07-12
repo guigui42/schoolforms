@@ -62,9 +62,9 @@ export function PDFEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
-  const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastRenderTimeRef = useRef<number>(0);
   const pdfImageDataRef = useRef<ImageData | null>(null); // Cache the PDF rendering
+  const lastPreviewBoxRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null); // Track last preview box
 
   const drawField = useCallback((ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
     // Save canvas state before drawing
@@ -184,6 +184,47 @@ export function PDFEditorPage() {
     }
   }, []);
 
+  // Function to clear a specific area from the canvas by restoring PDF data
+  const clearPreviewArea = useCallback((ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) => {
+    if (!pdfImageDataRef.current) return;
+    
+    // Add some padding to ensure we clear the entire area including borders and text
+    const padding = 20;
+    const clearX = Math.max(0, x - padding);
+    const clearY = Math.max(0, y - padding);
+    const clearWidth = Math.min(ctx.canvas.width - clearX, width + padding * 2);
+    const clearHeight = Math.min(ctx.canvas.height - clearY, height + padding * 2);
+    
+    try {
+      // Get the original PDF data for this specific area
+      const originalData = ctx.createImageData(clearWidth, clearHeight);
+      const sourceData = pdfImageDataRef.current;
+      
+      // Copy the original PDF data pixel by pixel for the specific area
+      for (let row = 0; row < clearHeight; row++) {
+        for (let col = 0; col < clearWidth; col++) {
+          const sourceX = clearX + col;
+          const sourceY = clearY + row;
+          
+          if (sourceX < sourceData.width && sourceY < sourceData.height) {
+            const sourceIndex = (sourceY * sourceData.width + sourceX) * 4;
+            const targetIndex = (row * clearWidth + col) * 4;
+            
+            originalData.data[targetIndex] = sourceData.data[sourceIndex];     // R
+            originalData.data[targetIndex + 1] = sourceData.data[sourceIndex + 1]; // G
+            originalData.data[targetIndex + 2] = sourceData.data[sourceIndex + 2]; // B
+            originalData.data[targetIndex + 3] = sourceData.data[sourceIndex + 3]; // A
+          }
+        }
+      }
+      
+      // Put the original data back
+      ctx.putImageData(originalData, clearX, clearY);
+    } catch (error) {
+      console.error('Error clearing preview area:', error);
+    }
+  }, []);
+
   const drawPreview = useCallback((ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
     // Save canvas state before drawing
     ctx.save();
@@ -193,6 +234,15 @@ export function PDFEditorPage() {
       const y = Math.min(start.y, end.y) * currentScale;
       const width = Math.abs(end.x - start.x) * currentScale;
       const height = Math.abs(end.y - start.y) * currentScale;
+      
+      // Clear the previous preview box if it exists
+      if (lastPreviewBoxRef.current) {
+        clearPreviewArea(ctx, lastPreviewBoxRef.current.x, lastPreviewBoxRef.current.y, 
+                        lastPreviewBoxRef.current.width, lastPreviewBoxRef.current.height);
+      }
+      
+      // Store current preview box position for next clear
+      lastPreviewBoxRef.current = { x, y, width, height };
       
       // Reset any previous drawing state
       ctx.globalCompositeOperation = 'source-over';
@@ -220,7 +270,7 @@ export function PDFEditorPage() {
       // Restore canvas state (this will reset line dash and other properties)
       ctx.restore();
     }
-  }, [drawingMode]);
+  }, [drawingMode, clearPreviewArea]);
 
   // Separate function to draw field overlays without re-rendering the PDF
   const drawFieldOverlays = useCallback(() => {
@@ -260,6 +310,9 @@ export function PDFEditorPage() {
         drawField(ctx, field, scale);
       });
       
+      // Clear the preview box tracking when doing full redraw
+      lastPreviewBoxRef.current = null;
+      
       // Draw preview if currently drawing
       if (isDrawing && startPos && currentPos) {
         drawPreview(ctx, startPos, currentPos, scale);
@@ -272,9 +325,23 @@ export function PDFEditorPage() {
     }
   }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
 
+  // Function to draw only the preview box during mouse movement (without full redraw)
+  const drawPreviewOnly = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Only draw the preview, don't touch the PDF or existing fields
+    drawPreview(ctx, start, end, scale);
+  }, [drawPreview, scale]);
   // Separate function to render only the PDF page (without fields)
   const renderPDFPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
     if (!pdfJsDocument) return;
+    
+    // Clear the preview box tracking when rendering a new page
+    lastPreviewBoxRef.current = null;
     
     try {
       const page = await pdfJsDocument.getPage(pageIndex + 1); // PDF.js uses 1-based indexing
@@ -368,13 +435,10 @@ export function PDFEditorPage() {
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
-      // Clean up timeout ref if it exists
-      if (mouseMoveTimeoutRef.current) {
-        clearTimeout(mouseMoveTimeoutRef.current);
-        mouseMoveTimeoutRef.current = null;
-      }
       // Clear cached PDF image data
       pdfImageDataRef.current = null;
+      // Clear preview box tracking
+      lastPreviewBoxRef.current = null;
     };
   }, []);
 
@@ -436,21 +500,13 @@ export function PDFEditorPage() {
     
     setCurrentPos({ x, y });
     
-    // Throttle the re-rendering to prevent flickering and ensure smooth performance
+    // Throttle the re-rendering to prevent excessive redraws
     const now = Date.now();
     if (now - lastRenderTimeRef.current > 16) { // Max 60fps
       lastRenderTimeRef.current = now;
       
-      // Cancel any pending timeout
-      if (mouseMoveTimeoutRef.current) {
-        clearTimeout(mouseMoveTimeoutRef.current);
-      }
-      
-      // Schedule overlay redraw
-      mouseMoveTimeoutRef.current = setTimeout(() => {
-        // Only redraw field overlays, not the entire PDF page
-        drawFieldOverlays();
-      }, 0);
+      // Only draw the preview box, don't touch the PDF or other fields
+      drawPreviewOnly(startPos, { x, y });
     }
   };
 
@@ -463,6 +519,16 @@ export function PDFEditorPage() {
     const rect = canvas.getBoundingClientRect();
     const endX = (e.clientX - rect.left) / scale;
     const endY = (e.clientY - rect.top) / scale;
+    
+    // Clear the preview box since we're done drawing
+    if (lastPreviewBoxRef.current) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        clearPreviewArea(ctx, lastPreviewBoxRef.current.x, lastPreviewBoxRef.current.y, 
+                        lastPreviewBoxRef.current.width, lastPreviewBoxRef.current.height);
+      }
+      lastPreviewBoxRef.current = null;
+    }
     
     const x = Math.min(startPos.x, endX);
     const y = Math.min(startPos.y, endY);
@@ -518,6 +584,8 @@ export function PDFEditorPage() {
     setCurrentPage(newPage);
     // Clear the cached PDF image data when changing pages
     pdfImageDataRef.current = null;
+    // Clear preview box tracking
+    lastPreviewBoxRef.current = null;
     if (pdfJsDoc) {
       renderPage(pdfJsDoc, newPage);
     }
