@@ -8,7 +8,6 @@ import {
   Stack,
   Group,
   FileButton,
-  Select,
   TextInput,
   Modal,
   Card,
@@ -16,6 +15,7 @@ import {
   ActionIcon,
   Grid,
   Alert,
+  SegmentedControl,
 } from '@mantine/core';
 import {
   IconUpload,
@@ -40,6 +40,7 @@ interface PDFField {
   width: number;
   height: number;
   pageIndex: number;
+  isExisting?: boolean; // To differentiate between user-created and existing fields
 }
 
 export function PDFEditorPage() {
@@ -52,11 +53,13 @@ export function PDFEditorPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [drawingMode, setDrawingMode] = useState<'text' | 'checkbox'>('text');
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null);
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [currentField, setCurrentField] = useState<PDFField | null>(null);
   const [fieldName, setFieldName] = useState('');
   const [scale, setScale] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [existingFields, setExistingFields] = useState<PDFField[]>([]);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,13 +71,20 @@ export function PDFEditorPage() {
     const width = field.width * currentScale;
     const height = field.height * currentScale;
     
+    // Different colors for existing vs new fields
+    const isExisting = field.isExisting;
+    const textColor = isExisting ? '#fd7e14' : '#339af0'; // orange for existing, blue for new
+    const checkboxColor = isExisting ? '#fd7e14' : '#51cf66'; // orange for existing, green for new
+    
     // Draw field box
-    ctx.strokeStyle = field.type === 'text' ? '#339af0' : '#51cf66';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = field.type === 'text' ? textColor : checkboxColor;
+    ctx.lineWidth = isExisting ? 3 : 2; // Thicker border for existing fields
     ctx.strokeRect(x, y, width, height);
     
     // Fill with semi-transparent color
-    ctx.fillStyle = field.type === 'text' ? 'rgba(51, 154, 240, 0.1)' : 'rgba(81, 207, 102, 0.1)';
+    ctx.fillStyle = field.type === 'text' 
+      ? (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(51, 154, 240, 0.1)')
+      : (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(81, 207, 102, 0.1)');
     ctx.fillRect(x, y, width, height);
     
     // Draw field name
@@ -82,6 +92,99 @@ export function PDFEditorPage() {
     ctx.font = '12px Arial';
     ctx.textAlign = 'left';
     ctx.fillText(field.name, x + 2, y - 4);
+    
+    // Add indicator for existing fields
+    if (isExisting) {
+      ctx.fillStyle = '#fd7e14';
+      ctx.font = '10px Arial';
+      ctx.fillText('(existant)', x + 2, y - 16);
+    }
+  };
+
+  const extractExistingFields = useCallback(async (pdfDocument: PDFDocument) => {
+    try {
+      const form = pdfDocument.getForm();
+      const existingFieldsData: PDFField[] = [];
+      
+      // Get all form fields
+      const formFields = form.getFields();
+      
+      formFields.forEach((field, index) => {
+        const fieldName = field.getName();
+        const widgets = field.acroField.getWidgets();
+        
+        widgets.forEach((widget, widgetIndex) => {
+          const rect = widget.getRectangle();
+          // Try to get page reference - this API might vary
+          let pageIndex = 0;
+          try {
+            // Find the page index by checking all pages
+            const pages = pdfDocument.getPages();
+            for (let i = 0; i < pages.length; i++) {
+              // This is a simplified approach - might need adjustment based on actual pdf-lib API
+              pageIndex = i;
+              break;
+            }
+          } catch (error) {
+            console.warn('Could not determine page index for field:', fieldName);
+          }
+          
+          if (rect) {
+            const pages = pdfDocument.getPages();
+            const pageSize = pages[pageIndex].getSize();
+            
+            // Convert PDF coordinates to canvas coordinates
+            const x = rect.x;
+            const y = pageSize.height - rect.y - rect.height; // Convert from bottom-left to top-left origin
+            const width = rect.width;
+            const height = rect.height;
+            
+            // Determine field type
+            let fieldType: 'text' | 'checkbox' = 'text';
+            if (field.constructor.name === 'PDFCheckBox') {
+              fieldType = 'checkbox';
+            }
+            
+            existingFieldsData.push({
+              id: `existing-${index}-${widgetIndex}`,
+              name: fieldName,
+              type: fieldType,
+              x,
+              y,
+              width,
+              height,
+              pageIndex,
+              isExisting: true,
+            });
+          }
+        });
+      });
+      
+      setExistingFields(existingFieldsData);
+    } catch (error) {
+      console.error('Error extracting existing fields:', error);
+      setExistingFields([]);
+    }
+  }, []);
+
+  const drawPreview = (ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
+    const x = Math.min(start.x, end.x) * currentScale;
+    const y = Math.min(start.y, end.y) * currentScale;
+    const width = Math.abs(end.x - start.x) * currentScale;
+    const height = Math.abs(end.y - start.y) * currentScale;
+    
+    // Draw preview rectangle
+    ctx.strokeStyle = drawingMode === 'text' ? '#339af0' : '#51cf66';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]); // Dashed line for preview
+    ctx.strokeRect(x, y, width, height);
+    
+    // Fill with semi-transparent color
+    ctx.fillStyle = drawingMode === 'text' ? 'rgba(51, 154, 240, 0.2)' : 'rgba(81, 207, 102, 0.2)';
+    ctx.fillRect(x, y, width, height);
+    
+    // Reset line dash
+    ctx.setLineDash([]);
   };
 
   const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
@@ -132,17 +235,28 @@ export function PDFEditorPage() {
       await renderTask.promise;
       
       // Draw existing fields for this page
+      const pageExistingFields = existingFields.filter(f => f.pageIndex === pageIndex);
+      pageExistingFields.forEach(field => {
+        drawField(ctx, field, newScale);
+      });
+      
+      // Draw user-created fields for this page
       const pageFields = fields.filter(f => f.pageIndex === pageIndex);
       pageFields.forEach(field => {
         drawField(ctx, field, newScale);
       });
       
+      // Draw preview if currently drawing
+      if (isDrawing && startPos && currentPos) {
+        drawPreview(ctx, startPos, currentPos, newScale);
+      }
+      
     } catch (error) {
-      if (error.name !== 'RenderingCancelledException') {
+      if (error instanceof Error && error.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', error);
       }
     }
-  }, [fields]);
+  }, [fields, existingFields, isDrawing, startPos, currentPos, drawField, drawPreview]);
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
@@ -171,6 +285,9 @@ export function PDFEditorPage() {
       const pdfLibDoc = await PDFDocument.load(arrayBuffer);
       setPdfDoc(pdfLibDoc);
       
+      // Extract existing form fields
+      await extractExistingFields(pdfLibDoc);
+      
       // Load with PDF.js for rendering
       const pdfJsDocument = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       setPdfJsDoc(pdfJsDocument);
@@ -185,7 +302,7 @@ export function PDFEditorPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [extractExistingFields]);
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -196,7 +313,26 @@ export function PDFEditorPage() {
     const y = (e.clientY - rect.top) / scale;
     
     setStartPos({ x, y });
+    setCurrentPos({ x, y });
     setIsDrawing(true);
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
+    
+    setCurrentPos({ x, y });
+    
+    // Re-render the page with preview
+    if (pdfJsDoc) {
+      renderPage(pdfJsDoc, currentPage);
+    }
   };
 
   const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -237,6 +373,7 @@ export function PDFEditorPage() {
     
     setIsDrawing(false);
     setStartPos(null);
+    setCurrentPos(null);
   };
 
   const handleFieldSave = () => {
@@ -388,16 +525,33 @@ export function PDFEditorPage() {
         
         {pdfJsDoc && (
           <Group mb="md">
-            <Select
-              label="Type de champ"
-              value={drawingMode}
-              onChange={(value) => setDrawingMode(value as 'text' | 'checkbox')}
-              data={[
-                { value: 'text', label: 'Champ texte' },
-                { value: 'checkbox', label: 'Case à cocher' },
-              ]}
-              leftSection={drawingMode === 'text' ? <IconSquare size={16} /> : <IconCheckbox size={16} />}
-            />
+            <div>
+              <Text size="sm" fw={500} mb="xs">Type de champ</Text>
+              <SegmentedControl
+                value={drawingMode}
+                onChange={(value) => setDrawingMode(value as 'text' | 'checkbox')}
+                data={[
+                  { 
+                    value: 'text', 
+                    label: (
+                      <Group gap="xs">
+                        <IconSquare size={16} />
+                        <span>Texte</span>
+                      </Group>
+                    )
+                  },
+                  { 
+                    value: 'checkbox', 
+                    label: (
+                      <Group gap="xs">
+                        <IconCheckbox size={16} />
+                        <span>Case à cocher</span>
+                      </Group>
+                    )
+                  },
+                ]}
+              />
+            </div>
             
             {totalPages > 1 && (
               <Group>
@@ -437,6 +591,7 @@ export function PDFEditorPage() {
                 <canvas
                   ref={canvasRef}
                   onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
                   onMouseUp={handleCanvasMouseUp}
                   style={{
                     border: '1px solid #ccc',
@@ -451,38 +606,74 @@ export function PDFEditorPage() {
           <Grid.Col span={{ base: 12, md: 4 }}>
             <Paper p="md">
               <Title order={3} mb="md">
-                Champs définis ({fields.length})
+                Champs définis ({fields.length + existingFields.length})
               </Title>
               
-              {fields.length === 0 ? (
+              {existingFields.length > 0 && (
+                <div>
+                  <Text size="sm" fw={500} mb="xs" c="orange">
+                    Champs existants ({existingFields.length})
+                  </Text>
+                  <Stack gap="xs" mb="md">
+                    {existingFields.map((field) => (
+                      <Card key={field.id} p="xs" withBorder style={{ borderColor: '#fd7e14' }}>
+                        <Group justify="space-between">
+                          <div>
+                            <Text size="sm" fw={500} c="orange">
+                              {field.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
+                            </Text>
+                          </div>
+                          <Badge color="orange" variant="light" size="sm">
+                            Existant
+                          </Badge>
+                        </Group>
+                      </Card>
+                    ))}
+                  </Stack>
+                </div>
+              )}
+              
+              {fields.length === 0 && existingFields.length === 0 ? (
                 <Text c="dimmed" size="sm">
                   Aucun champ défini. Dessinez des zones sur le PDF pour créer des champs.
                 </Text>
+              ) : fields.length === 0 ? (
+                <Text c="dimmed" size="sm">
+                  Aucun nouveau champ créé. Dessinez des zones sur le PDF pour créer des champs.
+                </Text>
               ) : (
-                <Stack gap="xs">
-                  {fields.map((field) => (
-                    <Card key={field.id} p="xs" withBorder>
-                      <Group justify="space-between">
-                        <div>
-                          <Text size="sm" fw={500}>
-                            {field.name}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
-                          </Text>
-                        </div>
-                        <ActionIcon
-                          color="red"
-                          variant="light"
-                          size="sm"
-                          onClick={() => handleFieldDelete(field.id)}
-                        >
-                          <IconTrash size={12} />
-                        </ActionIcon>
-                      </Group>
-                    </Card>
-                  ))}
-                </Stack>
+                <div>
+                  <Text size="sm" fw={500} mb="xs" c="blue">
+                    Nouveaux champs ({fields.length})
+                  </Text>
+                  <Stack gap="xs">
+                    {fields.map((field) => (
+                      <Card key={field.id} p="xs" withBorder>
+                        <Group justify="space-between">
+                          <div>
+                            <Text size="sm" fw={500}>
+                              {field.name}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
+                            </Text>
+                          </div>
+                          <ActionIcon
+                            color="red"
+                            variant="light"
+                            size="sm"
+                            onClick={() => handleFieldDelete(field.id)}
+                          >
+                            <IconTrash size={12} />
+                          </ActionIcon>
+                        </Group>
+                      </Card>
+                    ))}
+                  </Stack>
+                </div>
               )}
             </Paper>
           </Grid.Col>
