@@ -60,7 +60,7 @@ export function PDFEditorPage() {
   const [scale, setScale] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [existingFields, setExistingFields] = useState<PDFField[]>([]);
-  const [originalExistingFieldsCount, setOriginalExistingFieldsCount] = useState(0);
+  const [hasDeletedFields, setHasDeletedFields] = useState(false);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -191,7 +191,6 @@ export function PDFEditorPage() {
       
       console.log('Extracted existing fields:', existingFieldsData);
       setExistingFields(existingFieldsData);
-      setOriginalExistingFieldsCount(existingFieldsData.length);
     } catch (error) {
       console.error('Error extracting existing fields:', error);
       setExistingFields([]);
@@ -378,7 +377,8 @@ export function PDFEditorPage() {
       setTotalPages(pdfJsDocument.numPages);
       setCurrentPage(0);
       setFields([]);
-      // originalExistingFieldsCount is set by extractExistingFields - don't reset it here
+      setHasDeletedFields(false);
+      // extractExistingFields is called above - don't reset existing fields count here
       
     } catch (error) {
       console.error('Error loading PDF:', error);
@@ -482,6 +482,7 @@ export function PDFEditorPage() {
 
   const handleExistingFieldDelete = (fieldId: string) => {
     setExistingFields(prev => prev.filter(f => f.id !== fieldId));
+    setHasDeletedFields(true);
     // Field overlays will be re-drawn automatically via useEffect
   };
 
@@ -494,15 +495,17 @@ export function PDFEditorPage() {
     if (!pdfFile || !pdfDoc) return;
     
     try {
-      // Always create a new PDF to avoid field conflicts
+      // Create a new PDF document
       const newPdf = await PDFDocument.create();
       
-      // Copy all pages from the original PDF
-      const pdfArrayBuffer = await pdfFile.arrayBuffer();
-      const originalPdf = await PDFDocument.load(pdfArrayBuffer);
-      const pageIndices = Array.from(Array(originalPdf.getPageCount()).keys());
-      const copiedPages = await newPdf.copyPages(originalPdf, pageIndices);
-      copiedPages.forEach(page => newPdf.addPage(page));
+      // Copy pages from original PDF but without form fields
+      const originalPdf = await PDFDocument.load(await pdfFile.arrayBuffer());
+      
+      // Copy pages one by one
+      for (let pageIndex = 0; pageIndex < originalPdf.getPageCount(); pageIndex++) {
+        const [copiedPage] = await newPdf.copyPages(originalPdf, [pageIndex]);
+        newPdf.addPage(copiedPage);
+      }
       
       // Create the form for the new PDF
       const newForm = newPdf.getForm();
@@ -697,7 +700,7 @@ export function PDFEditorPage() {
             )}
           </Group>
           
-          {(fields.length > 0 || existingFields.length < originalExistingFieldsCount) && (
+          {(fields.length > 0 || hasDeletedFields) && (
             <Button
               leftSection={<IconDownload size={16} />}
               onClick={savePDFWithFields}
