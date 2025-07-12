@@ -26,7 +26,7 @@ import {
   IconCheck,
   IconX,
 } from '@tabler/icons-react';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, PDFName, PDFString } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
@@ -459,52 +459,71 @@ export function PDFEditorPage() {
       const pages = await pdfWithFields.copyPages(pdfDoc, pdfDoc.getPageIndices());
       pages.forEach(page => pdfWithFields.addPage(page));
       
-      // Track field names to handle duplicates
-      const fieldNameCounts = new Map<string, number>();
-      const duplicateFieldNames: string[] = [];
+      // Group fields by name to handle duplicates
+      const fieldGroups = new Map<string, PDFField[]>();
+      fields.forEach(field => {
+        if (!fieldGroups.has(field.name)) {
+          fieldGroups.set(field.name, []);
+        }
+        fieldGroups.get(field.name)!.push(field);
+      });
       
-      // Add form fields to the PDF
-      for (const field of fields) {
-        const page = pdfWithFields.getPage(field.pageIndex);
-        const { height: pageHeight } = page.getSize();
+      // Create fields with same names using the suggested approach
+      for (const [fieldName, fieldList] of fieldGroups) {
+        const createdFields: any[] = [];
         
-        // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
-        const pdfY = pageHeight - field.y - field.height;
-        
-        // Generate unique field name to handle duplicates
-        let uniqueFieldName = field.name;
-        const count = fieldNameCounts.get(field.name) || 0;
-        if (count > 0) {
-          uniqueFieldName = `${field.name}_${count + 1}`;
-          if (!duplicateFieldNames.includes(field.name)) {
-            duplicateFieldNames.push(field.name);
+        // Create fields with temporary unique names
+        for (let i = 0; i < fieldList.length; i++) {
+          const field = fieldList[i];
+          const page = pdfWithFields.getPage(field.pageIndex);
+          const { height: pageHeight } = page.getSize();
+          
+          // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
+          const pdfY = pageHeight - field.y - field.height;
+          
+          const tempName = `${fieldName}_temp_${i}`;
+          
+          if (field.type === 'text') {
+            // Create text field with temporary name
+            const textField = pdfWithFields.getForm().createTextField(tempName);
+            textField.addToPage(page, {
+              x: field.x,
+              y: pdfY,
+              width: field.width,
+              height: field.height,
+              borderColor: rgb(0, 0, 0),
+              borderWidth: 1,
+            });
+            createdFields.push(textField);
+          } else if (field.type === 'checkbox') {
+            // Create checkbox field with temporary name
+            const checkboxField = pdfWithFields.getForm().createCheckBox(tempName);
+            checkboxField.addToPage(page, {
+              x: field.x,
+              y: pdfY,
+              width: field.width,
+              height: field.height,
+              borderColor: rgb(0, 0, 0),
+              borderWidth: 1,
+            });
+            createdFields.push(checkboxField);
           }
         }
-        fieldNameCounts.set(field.name, count + 1);
         
-        if (field.type === 'text') {
-          // Create text field
-          const textField = pdfWithFields.getForm().createTextField(uniqueFieldName);
-          textField.addToPage(page, {
-            x: field.x,
-            y: pdfY,
-            width: field.width,
-            height: field.height,
-            borderColor: rgb(0, 0, 0),
-            borderWidth: 1,
-          });
-        } else if (field.type === 'checkbox') {
-          // Create checkbox field
-          const checkboxField = pdfWithFields.getForm().createCheckBox(uniqueFieldName);
-          checkboxField.addToPage(page, {
-            x: field.x,
-            y: pdfY,
-            width: field.width,
-            height: field.height,
-            borderColor: rgb(0, 0, 0),
-            borderWidth: 1,
-          });
-        }
+        // Rename all fields to have the same name
+        createdFields.forEach((field) => {
+          try {
+            const fieldRef = field.ref;
+            const fieldDict = pdfWithFields.context.lookup(fieldRef);
+            
+            // Check if fieldDict is a PDFDict and set the same name for all fields
+            if (fieldDict && typeof fieldDict === 'object' && 'set' in fieldDict) {
+              (fieldDict as any).set(PDFName.of('T'), PDFString.of(fieldName));
+            }
+          } catch (error) {
+            console.warn('Could not rename field:', error);
+          }
+        });
       }
       
       // Save the PDF with embedded fields
@@ -526,16 +545,6 @@ export function PDFEditorPage() {
         color: 'green',
         icon: <IconCheck size={18} />,
       });
-      
-      // Show warning for duplicate field names
-      if (duplicateFieldNames.length > 0) {
-        notifications.show({
-          title: 'Noms de champs dupliqués détectés',
-          message: `Les champs suivants ont été renommés automatiquement : ${duplicateFieldNames.join(', ')}`,
-          color: 'orange',
-          autoClose: 8000,
-        });
-      }
       
     } catch (error) {
       console.error('Error saving PDF with fields:', error);
