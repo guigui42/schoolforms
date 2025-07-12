@@ -19,8 +19,6 @@ import {
 } from '@mantine/core';
 import {
   IconUpload,
-  IconSquare,
-  IconCheckbox,
   IconTrash,
   IconDownload,
   IconInfoCircle,
@@ -128,7 +126,7 @@ export function PDFEditorPage() {
               break;
             }
           } catch (error) {
-            console.warn('Could not determine page index for field:', fieldName);
+            console.warn('Could not determine page index for field:', fieldName, error);
           }
           
           if (rect) {
@@ -273,8 +271,10 @@ export function PDFEditorPage() {
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
+      // Clean up timeout ref if it exists
       if (mouseMoveTimeoutRef.current) {
         clearTimeout(mouseMoveTimeoutRef.current);
+        mouseMoveTimeoutRef.current = null;
       }
     };
   }, []);
@@ -334,19 +334,15 @@ export function PDFEditorPage() {
     
     setCurrentPos({ x, y });
     
-    // Throttle the re-rendering to prevent flickering
+    // Throttle the re-rendering to prevent flickering - simplified approach
     const now = Date.now();
     if (now - lastRenderTimeRef.current > 16) { // Max 60fps
-      if (mouseMoveTimeoutRef.current) {
-        clearTimeout(mouseMoveTimeoutRef.current);
-      }
+      lastRenderTimeRef.current = now;
       
-      mouseMoveTimeoutRef.current = setTimeout(() => {
-        if (pdfJsDoc) {
-          renderPage(pdfJsDoc, currentPage);
-        }
-        lastRenderTimeRef.current = now;
-      }, 16);
+      // Immediate render without timeout to prevent disappearing content
+      if (pdfJsDoc) {
+        renderPage(pdfJsDoc, currentPage);
+      }
     }
   };
 
@@ -540,31 +536,22 @@ export function PDFEditorPage() {
         
         {pdfJsDoc && (
           <Group mb="md">
-            <div style={{ minWidth: '200px' }}>
+            <div style={{ minWidth: '300px' }}>
               <Text size="sm" fw={500} mb="xs">Type de champ</Text>
               <SegmentedControl
                 value={drawingMode}
                 onChange={(value) => setDrawingMode(value as 'text' | 'checkbox')}
                 size="sm"
-                style={{ whiteSpace: 'nowrap' }}
+                fullWidth
+                style={{ minWidth: '280px' }}
                 data={[
                   { 
                     value: 'text', 
-                    label: (
-                      <Group gap="xs" style={{ whiteSpace: 'nowrap' }}>
-                        <IconSquare size={16} />
-                        <span>Texte</span>
-                      </Group>
-                    )
+                    label: '📝 Texte'
                   },
                   { 
                     value: 'checkbox', 
-                    label: (
-                      <Group gap="xs" style={{ whiteSpace: 'nowrap' }}>
-                        <IconCheckbox size={16} />
-                        <span>Case à cocher</span>
-                      </Group>
-                    )
+                    label: '☑️ Case à cocher'
                   },
                 ]}
               />
