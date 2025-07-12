@@ -65,6 +65,17 @@ export function PDFEditorPage() {
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+  const fieldNameInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus on field name input when modal opens
+  useEffect(() => {
+    if (showFieldModal && fieldNameInputRef.current) {
+      // Small delay to ensure modal is fully rendered
+      setTimeout(() => {
+        fieldNameInputRef.current?.focus();
+      }, 100);
+    }
+  }, [showFieldModal]);
 
   const drawField = useCallback((ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
     const x = field.x * currentScale;
@@ -465,6 +476,11 @@ export function PDFEditorPage() {
     // Field overlays will be re-drawn automatically via useEffect
   };
 
+  const handleExistingFieldDelete = (fieldId: string) => {
+    setExistingFields(prev => prev.filter(f => f.id !== fieldId));
+    // Field overlays will be re-drawn automatically via useEffect
+  };
+
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     // PDF rendering will be handled automatically via useEffect
@@ -804,9 +820,19 @@ export function PDFEditorPage() {
                               {field.type === 'text' ? 'Texte' : 'Case à cocher'} - Page {field.pageIndex + 1}
                             </Text>
                           </div>
-                          <Badge color="orange" variant="light" size="sm">
-                            Existant
-                          </Badge>
+                          <Group gap="xs">
+                            <Badge color="orange" variant="light" size="sm">
+                              Existant
+                            </Badge>
+                            <ActionIcon
+                              color="red"
+                              variant="light"
+                              size="sm"
+                              onClick={() => handleExistingFieldDelete(field.id)}
+                            >
+                              <IconTrash size={12} />
+                            </ActionIcon>
+                          </Group>
                         </Group>
                       </Card>
                     ))}
@@ -831,6 +857,7 @@ export function PDFEditorPage() {
       >
         <Stack>
           <TextInput
+            ref={fieldNameInputRef}
             label="Nom du champ"
             placeholder="Entrez le nom du champ"
             value={fieldName}
