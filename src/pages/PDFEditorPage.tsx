@@ -483,6 +483,9 @@ export function PDFEditorPage() {
   const handleExistingFieldDelete = (fieldId: string) => {
     setExistingFields(prev => prev.filter(f => f.id !== fieldId));
     // Field overlays will be re-drawn automatically via useEffect
+    console.log('Deleted existing field:', fieldId);
+    console.log('Remaining existing fields:', existingFields.filter(f => f.id !== fieldId).length);
+    console.log('Original existing fields count:', originalExistingFieldsCount);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -494,55 +497,27 @@ export function PDFEditorPage() {
     if (!pdfFile || !pdfDoc) return;
     
     try {
-      // Create a copy of the PDF document - start from the original to preserve existing fields
+      // Always create a new PDF to avoid field conflicts
+      const newPdf = await PDFDocument.create();
+      
+      // Copy all pages from the original PDF
       const pdfArrayBuffer = await pdfFile.arrayBuffer();
-      const pdfWithFields = await PDFDocument.load(pdfArrayBuffer);
+      const originalPdf = await PDFDocument.load(pdfArrayBuffer);
+      const pageIndices = Array.from(Array(originalPdf.getPageCount()).keys());
+      const copiedPages = await newPdf.copyPages(originalPdf, pageIndices);
+      copiedPages.forEach(page => newPdf.addPage(page));
       
-      // Get the form from the PDF
-      const form = pdfWithFields.getForm();
+      // Create the form for the new PDF
+      const newForm = newPdf.getForm();
       
-      // Remove existing fields that were deleted by the user
-      const existingFieldNames = new Set<string>();
-      try {
-        const existingFormFields = form.getFields();
-        existingFormFields.forEach(field => {
-          existingFieldNames.add(field.getName());
-        });
-      } catch (error) {
-        console.warn('Error getting existing field names:', error);
-      }
-      
-      // Find fields that were deleted (exist in PDF but not in our existingFields state)
-      const deletedFieldNames = new Set<string>();
-      existingFieldNames.forEach(fieldName => {
-        const stillExists = existingFields.some(field => field.name === fieldName);
-        if (!stillExists) {
-          deletedFieldNames.add(fieldName);
-        }
-      });
-      
-      // Remove deleted fields from the PDF
-      if (deletedFieldNames.size > 0) {
-        console.log('Removing deleted fields:', Array.from(deletedFieldNames));
+      // Add existing fields that weren't deleted
+      console.log('Adding existing fields:', existingFields.length);
+      for (const field of existingFields) {
+        const page = newPdf.getPage(field.pageIndex);
+        const { height: pageHeight } = page.getSize();
+        const pdfY = pageHeight - field.y - field.height;
         
-        // We need to create a new PDF without the deleted fields
-        // pdf-lib doesn't have a direct "remove field" method, so we'll recreate the form
-        const newPdf = await PDFDocument.create();
-        
-        // Copy all pages from the original PDF
-        const pageIndices = Array.from(Array(pdfWithFields.getPageCount()).keys());
-        const copiedPages = await newPdf.copyPages(pdfWithFields, pageIndices);
-        copiedPages.forEach(page => newPdf.addPage(page));
-        
-        // Recreate the form with only the fields we want to keep
-        const newForm = newPdf.getForm();
-        
-        // Add back the existing fields that weren't deleted
-        for (const field of existingFields) {
-          const page = newPdf.getPage(field.pageIndex);
-          const { height: pageHeight } = page.getSize();
-          const pdfY = pageHeight - field.y - field.height;
-          
+        try {
           if (field.type === 'text') {
             const textField = newForm.createTextField(field.name);
             textField.addToPage(page, {
@@ -564,209 +539,106 @@ export function PDFEditorPage() {
               borderWidth: 1,
             });
           }
-        }
-        
-        // Use the new PDF for adding new fields
-        const finalPdf = newPdf;
-        const finalForm = newForm;
-        
-        // Group new fields by name to handle duplicates and synchronization
-        const fieldGroups = new Map<string, PDFField[]>();
-        fields.forEach(field => {
-          if (!fieldGroups.has(field.name)) {
-            fieldGroups.set(field.name, []);
-          }
-          fieldGroups.get(field.name)!.push(field);
-        });
-        
-        // Create new fields with same names using the suggested approach
-        for (const [fieldName, fieldList] of fieldGroups) {
-          const createdFields: (import('pdf-lib').PDFTextField | import('pdf-lib').PDFCheckBox)[] = [];
-          
-          // Create fields with temporary unique names first
-          for (let i = 0; i < fieldList.length; i++) {
-            const field = fieldList[i];
-            const page = finalPdf.getPage(field.pageIndex);
-            const { height: pageHeight } = page.getSize();
-            
-            // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
-            const pdfY = pageHeight - field.y - field.height;
-            
-            // Use a completely unique temporary name to avoid conflicts
-            const tempName = `temp_field_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
-            
-            try {
-              if (field.type === 'text') {
-                // Create text field with temporary name
-                const textField = finalForm.createTextField(tempName);
-                textField.addToPage(page, {
-                  x: field.x,
-                  y: pdfY,
-                  width: field.width,
-                  height: field.height,
-                  borderColor: rgb(0, 0, 0),
-                  borderWidth: 1,
-                });
-                createdFields.push(textField);
-              } else if (field.type === 'checkbox') {
-                // Create checkbox field with temporary name
-                const checkboxField = finalForm.createCheckBox(tempName);
-                checkboxField.addToPage(page, {
-                  x: field.x,
-                  y: pdfY,
-                  width: field.width,
-                  height: field.height,
-                  borderColor: rgb(0, 0, 0),
-                  borderWidth: 1,
-                });
-                createdFields.push(checkboxField);
-              }
-            } catch (error) {
-              console.error(`Error creating field with temp name "${tempName}":`, error);
-            }
-          }
-          
-          // Now rename all fields to have the same name (synchronize them)
-          createdFields.forEach((field, index) => {
-            try {
-              const fieldRef = field.ref;
-              const fieldDict = finalPdf.context.lookup(fieldRef);
-              
-              // Set the same name for all fields to synchronize them
-              if (fieldDict && typeof fieldDict === 'object' && 'set' in fieldDict) {
-                // Use the exact fieldName without any modifications
-                (fieldDict as unknown as { set: (key: import('pdf-lib').PDFName, value: import('pdf-lib').PDFString) => void }).set(PDFName.of('T'), PDFString.of(fieldName));
-                console.log(`Renamed field ${index} to "${fieldName}"`);
-              }
-            } catch (error) {
-              console.warn(`Could not rename field ${index} to "${fieldName}":`, error);
-            }
-          });
-        }
-        
-        // Save the PDF with embedded fields
-        const pdfBytes = await finalPdf.save();
-        
-        // Download the PDF
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${pdfFile.name.replace('.pdf', '')}-with-fields.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        
-      } else {
-        // No fields were deleted, use the original approach
-        // Group new fields by name to handle duplicates and synchronization
-        const fieldGroups = new Map<string, PDFField[]>();
-        fields.forEach(field => {
-          if (!fieldGroups.has(field.name)) {
-            fieldGroups.set(field.name, []);
-          }
-          fieldGroups.get(field.name)!.push(field);
-        });
-        
-        // Check which field names already exist in the PDF
-        const existingFieldNames = new Set<string>();
-        try {
-          const existingFormFields = form.getFields();
-          existingFormFields.forEach(field => {
-            existingFieldNames.add(field.getName());
-          });
         } catch (error) {
-          console.warn('Error getting existing field names:', error);
+          console.error(`Error adding existing field "${field.name}":`, error);
         }
-        
-        // Create fields with same names using the suggested approach
-        for (const [fieldName, fieldList] of fieldGroups) {
-          const createdFields: (import('pdf-lib').PDFTextField | import('pdf-lib').PDFCheckBox)[] = [];
-          
-          // If field name already exists, we'll create synchronized fields
-          const fieldAlreadyExists = existingFieldNames.has(fieldName);
-          
-          if (fieldAlreadyExists) {
-            console.log(`Field "${fieldName}" already exists, creating synchronized fields`);
-          }
-          
-          // Create fields with temporary unique names first
-          for (let i = 0; i < fieldList.length; i++) {
-            const field = fieldList[i];
-            const page = pdfWithFields.getPage(field.pageIndex);
-            const { height: pageHeight } = page.getSize();
-            
-            // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
-            const pdfY = pageHeight - field.y - field.height;
-            
-            // Use a completely unique temporary name to avoid conflicts
-            const tempName = `temp_field_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
-            
-            try {
-              if (field.type === 'text') {
-                // Create text field with temporary name
-                const textField = form.createTextField(tempName);
-                textField.addToPage(page, {
-                  x: field.x,
-                  y: pdfY,
-                  width: field.width,
-                  height: field.height,
-                  borderColor: rgb(0, 0, 0),
-                  borderWidth: 1,
-                });
-                createdFields.push(textField);
-              } else if (field.type === 'checkbox') {
-                // Create checkbox field with temporary name
-                const checkboxField = form.createCheckBox(tempName);
-                checkboxField.addToPage(page, {
-                  x: field.x,
-                  y: pdfY,
-                  width: field.width,
-                  height: field.height,
-                  borderColor: rgb(0, 0, 0),
-                  borderWidth: 1,
-                });
-                createdFields.push(checkboxField);
-              }
-            } catch (error) {
-              console.error(`Error creating field with temp name "${tempName}":`, error);
-            }
-          }
-          
-          // Now rename all fields to have the same name (synchronize them)
-          createdFields.forEach((field, index) => {
-            try {
-              const fieldRef = field.ref;
-              const fieldDict = pdfWithFields.context.lookup(fieldRef);
-              
-              // Set the same name for all fields to synchronize them
-              if (fieldDict && typeof fieldDict === 'object' && 'set' in fieldDict) {
-                // Use the exact fieldName without any modifications
-                (fieldDict as unknown as { set: (key: import('pdf-lib').PDFName, value: import('pdf-lib').PDFString) => void }).set(PDFName.of('T'), PDFString.of(fieldName));
-                console.log(`Renamed field ${index} to "${fieldName}"`);
-              }
-            } catch (error) {
-              console.warn(`Could not rename field ${index} to "${fieldName}":`, error);
-            }
-          });
-        }
-        
-        // Save the PDF with embedded fields
-        const pdfBytes = await pdfWithFields.save();
-        
-        // Download the PDF
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${pdfFile.name.replace('.pdf', '')}-with-fields.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
       }
       
+      // Group new fields by name to handle duplicates and synchronization
+      const fieldGroups = new Map<string, PDFField[]>();
+      fields.forEach(field => {
+        if (!fieldGroups.has(field.name)) {
+          fieldGroups.set(field.name, []);
+        }
+        fieldGroups.get(field.name)!.push(field);
+      });
+      
+      console.log('Adding new field groups:', fieldGroups.size);
+      
+      // Create new fields with same names using the suggested approach
+      for (const [fieldName, fieldList] of fieldGroups) {
+        const createdFields: (import('pdf-lib').PDFTextField | import('pdf-lib').PDFCheckBox)[] = [];
+        
+        console.log(`Creating ${fieldList.length} fields with name "${fieldName}"`);
+        
+        // Create fields with temporary unique names first
+        for (let i = 0; i < fieldList.length; i++) {
+          const field = fieldList[i];
+          const page = newPdf.getPage(field.pageIndex);
+          const { height: pageHeight } = page.getSize();
+          
+          // Convert coordinates (canvas coordinates are top-left origin, PDF coordinates are bottom-left)
+          const pdfY = pageHeight - field.y - field.height;
+          
+          // Use a completely unique temporary name to avoid conflicts
+          const tempName = `temp_field_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${i}`;
+          
+          try {
+            if (field.type === 'text') {
+              // Create text field with temporary name
+              const textField = newForm.createTextField(tempName);
+              textField.addToPage(page, {
+                x: field.x,
+                y: pdfY,
+                width: field.width,
+                height: field.height,
+                borderColor: rgb(0, 0, 0),
+                borderWidth: 1,
+              });
+              createdFields.push(textField);
+            } else if (field.type === 'checkbox') {
+              // Create checkbox field with temporary name
+              const checkboxField = newForm.createCheckBox(tempName);
+              checkboxField.addToPage(page, {
+                x: field.x,
+                y: pdfY,
+                width: field.width,
+                height: field.height,
+                borderColor: rgb(0, 0, 0),
+                borderWidth: 1,
+              });
+              createdFields.push(checkboxField);
+            }
+          } catch (error) {
+            console.error(`Error creating field with temp name "${tempName}":`, error);
+          }
+        }
+        
+        // Now rename all fields to have the same name (synchronize them)
+        createdFields.forEach((field, index) => {
+          try {
+            const fieldRef = field.ref;
+            const fieldDict = newPdf.context.lookup(fieldRef);
+            
+            // Set the same name for all fields to synchronize them
+            if (fieldDict && typeof fieldDict === 'object' && 'set' in fieldDict) {
+              // Use the exact fieldName without any modifications
+              (fieldDict as unknown as { set: (key: import('pdf-lib').PDFName, value: import('pdf-lib').PDFString) => void }).set(PDFName.of('T'), PDFString.of(fieldName));
+              console.log(`Renamed field ${index} to "${fieldName}"`);
+            }
+          } catch (error) {
+            console.warn(`Could not rename field ${index} to "${fieldName}":`, error);
+          }
+        });
+      }
+      
+      // Save the PDF with embedded fields
+      const pdfBytes = await newPdf.save();
+      
+      // Download the PDF
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pdfFile.name.replace('.pdf', '')}-with-fields.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
       // Show success notification
+      const totalFields = existingFields.length + fields.length;
       notifications.show({
         title: 'PDF sauvegardé avec succès',
-        message: `Le PDF avec ${fields.length} nouveaux champs a été téléchargé.`,
+        message: `Le PDF avec ${totalFields} champs a été téléchargé.`,
         color: 'green',
         icon: <IconCheck size={18} />,
       });
