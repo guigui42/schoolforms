@@ -64,6 +64,8 @@ export function PDFEditorPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+  const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastRenderTimeRef = useRef<number>(0);
 
   const drawField = (ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
     const x = field.x * currentScale;
@@ -271,6 +273,9 @@ export function PDFEditorPage() {
       if (renderTaskRef.current) {
         renderTaskRef.current.cancel();
       }
+      if (mouseMoveTimeoutRef.current) {
+        clearTimeout(mouseMoveTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -329,9 +334,19 @@ export function PDFEditorPage() {
     
     setCurrentPos({ x, y });
     
-    // Re-render the page with preview
-    if (pdfJsDoc) {
-      renderPage(pdfJsDoc, currentPage);
+    // Throttle the re-rendering to prevent flickering
+    const now = Date.now();
+    if (now - lastRenderTimeRef.current > 16) { // Max 60fps
+      if (mouseMoveTimeoutRef.current) {
+        clearTimeout(mouseMoveTimeoutRef.current);
+      }
+      
+      mouseMoveTimeoutRef.current = setTimeout(() => {
+        if (pdfJsDoc) {
+          renderPage(pdfJsDoc, currentPage);
+        }
+        lastRenderTimeRef.current = now;
+      }, 16);
     }
   };
 
@@ -525,16 +540,18 @@ export function PDFEditorPage() {
         
         {pdfJsDoc && (
           <Group mb="md">
-            <div>
+            <div style={{ minWidth: '200px' }}>
               <Text size="sm" fw={500} mb="xs">Type de champ</Text>
               <SegmentedControl
                 value={drawingMode}
                 onChange={(value) => setDrawingMode(value as 'text' | 'checkbox')}
+                size="sm"
+                style={{ whiteSpace: 'nowrap' }}
                 data={[
                   { 
                     value: 'text', 
                     label: (
-                      <Group gap="xs">
+                      <Group gap="xs" style={{ whiteSpace: 'nowrap' }}>
                         <IconSquare size={16} />
                         <span>Texte</span>
                       </Group>
@@ -543,7 +560,7 @@ export function PDFEditorPage() {
                   { 
                     value: 'checkbox', 
                     label: (
-                      <Group gap="xs">
+                      <Group gap="xs" style={{ whiteSpace: 'nowrap' }}>
                         <IconCheckbox size={16} />
                         <span>Case à cocher</span>
                       </Group>
