@@ -25,7 +25,7 @@ import {
   IconDownload,
   IconInfoCircle,
 } from '@tabler/icons-react';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
@@ -279,7 +279,7 @@ export function PDFEditorPage() {
             y: pdfY,
             width: field.width,
             height: field.height,
-            borderColor: { r: 0, g: 0, b: 0 },
+            borderColor: rgb(0, 0, 0),
             borderWidth: 1,
           });
         } else if (field.type === 'checkbox') {
@@ -290,7 +290,7 @@ export function PDFEditorPage() {
             y: pdfY,
             width: field.width,
             height: field.height,
-            borderColor: { r: 0, g: 0, b: 0 },
+            borderColor: rgb(0, 0, 0),
             borderWidth: 1,
           });
         }
