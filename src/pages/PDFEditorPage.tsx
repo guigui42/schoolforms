@@ -495,22 +495,48 @@ export function PDFEditorPage() {
     if (!pdfFile || !pdfDoc) return;
     
     try {
-      // Create a new PDF document
+      // The solution: Create a new PDF and copy only the visual content
+      // Then add only the fields we want (non-deleted existing fields + new fields)
+      
+      // Create a new PDF document 
       const newPdf = await PDFDocument.create();
       
-      // Copy pages from original PDF but without form fields
+      // Load the original PDF
       const originalPdf = await PDFDocument.load(await pdfFile.arrayBuffer());
       
-      // Copy pages one by one
-      for (let pageIndex = 0; pageIndex < originalPdf.getPageCount(); pageIndex++) {
-        const [copiedPage] = await newPdf.copyPages(originalPdf, [pageIndex]);
-        newPdf.addPage(copiedPage);
+      // Copy all pages from original PDF - this will copy visual content
+      // The key is to clear any form fields after copying
+      const pageCount = originalPdf.getPageCount();
+      const pageIndices = Array.from({ length: pageCount }, (_, i) => i);
+      const copiedPages = await newPdf.copyPages(originalPdf, pageIndices);
+      
+      // Add copied pages to new PDF
+      copiedPages.forEach(page => newPdf.addPage(page));
+      
+      // Now we have the visual content but possibly also copied form fields
+      // We need to clear the form structure to start fresh
+      
+      // Remove any AcroForm (form) that might have been copied
+      try {
+        const context = newPdf.context;
+        const catalog = context.lookup(newPdf.catalog);
+        
+        // Remove the AcroForm entry to clear any copied form fields
+        if (catalog && typeof catalog === 'object' && 'delete' in catalog) {
+          const acroFormRef = catalog.get(PDFName.of('AcroForm'));
+          if (acroFormRef) {
+            catalog.delete(PDFName.of('AcroForm'));
+            console.log('Cleared copied form fields from PDF');
+          }
+        }
+      } catch (error) {
+        console.warn('Could not clear copied form fields:', error);
       }
       
-      // Create the form for the new PDF
-      const newForm = newPdf.getForm();
+      // Create a fresh form for the new PDF
+      const form = newPdf.getForm();
       
-      // Add existing fields that weren't deleted
+      // Add only the existing fields that weren't deleted
       console.log('Adding existing fields:', existingFields.length);
       for (const field of existingFields) {
         const page = newPdf.getPage(field.pageIndex);
@@ -519,7 +545,7 @@ export function PDFEditorPage() {
         
         try {
           if (field.type === 'text') {
-            const textField = newForm.createTextField(field.name);
+            const textField = form.createTextField(field.name);
             textField.addToPage(page, {
               x: field.x,
               y: pdfY,
@@ -529,7 +555,7 @@ export function PDFEditorPage() {
               borderWidth: 1,
             });
           } else if (field.type === 'checkbox') {
-            const checkboxField = newForm.createCheckBox(field.name);
+            const checkboxField = form.createCheckBox(field.name);
             checkboxField.addToPage(page, {
               x: field.x,
               y: pdfY,
@@ -576,7 +602,7 @@ export function PDFEditorPage() {
           try {
             if (field.type === 'text') {
               // Create text field with temporary name
-              const textField = newForm.createTextField(tempName);
+              const textField = form.createTextField(tempName);
               textField.addToPage(page, {
                 x: field.x,
                 y: pdfY,
@@ -588,7 +614,7 @@ export function PDFEditorPage() {
               createdFields.push(textField);
             } else if (field.type === 'checkbox') {
               // Create checkbox field with temporary name
-              const checkboxField = newForm.createCheckBox(tempName);
+              const checkboxField = form.createCheckBox(tempName);
               checkboxField.addToPage(page, {
                 x: field.x,
                 y: pdfY,
