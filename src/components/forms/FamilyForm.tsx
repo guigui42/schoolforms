@@ -9,8 +9,7 @@ import {
   Card,
   Text,
   Progress,
-  Notification,
-  Tabs
+  Notification
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
@@ -22,16 +21,11 @@ import { AddressForm } from './AddressForm';
 import { ParentForm } from './ParentForm';
 import { StudentForm } from './StudentForm';
 import { EmergencyContactForm } from './EmergencyContactForm';
-import { EDPPMedicalForm } from './EDPPMedicalForm';
-import { EDPPActivitiesForm } from './EDPPActivitiesForm';
-import { EDPPScheduleForm } from './EDPPScheduleForm';
-import { EDPPAuthorizationsForm } from './EDPPAuthorizationsForm';
 import { TemplateSelect } from '../pdf/TemplateSelect';
 import { useFormStore } from '../../stores/formStore';
 
 import type { AddressFormData, ParentFormData, EmergencyContactFormData } from '../../schemas/parent';
 import type { StudentFormData } from '../../schemas/student';
-import type { EDPPMedicalInfo, EDPPActivity, EDPPSchedule, EDPPAuthorizations } from '../../schemas/edpp';
 import type { Family } from '../../types/forms';
 
 export const FamilyForm: React.FC = () => {

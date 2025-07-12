@@ -8,7 +8,7 @@
 
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox, PDFRadioGroup, PDFDropdown } from 'pdf-lib';
 import type { Family } from '../../types/forms';
-import { getTemplateConfig, extractTemplateData, TEMPLATE_CONFIGS, type TemplateConfig, type PDFFieldMapping } from './templateMappings';
+import { getTemplateConfig, extractTemplateData, TEMPLATE_CONFIGS } from './templateMappings';
 
 // Re-export types and configs for convenience
 export type { TemplateConfig, PDFFieldMapping } from './templateMappings';

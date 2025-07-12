@@ -67,38 +67,54 @@ export function PDFEditorPage() {
   const pdfImageDataRef = useRef<ImageData | null>(null); // Cache the PDF rendering
 
   const drawField = useCallback((ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
-    const x = field.x * currentScale;
-    const y = field.y * currentScale;
-    const width = field.width * currentScale;
-    const height = field.height * currentScale;
+    // Save canvas state before drawing
+    ctx.save();
     
-    // Different colors for existing vs new fields
-    const isExisting = field.isExisting;
-    const textColor = isExisting ? '#fd7e14' : '#339af0'; // orange for existing, blue for new
-    const checkboxColor = isExisting ? '#fd7e14' : '#51cf66'; // orange for existing, green for new
-    
-    // Draw field box
-    ctx.strokeStyle = field.type === 'text' ? textColor : checkboxColor;
-    ctx.lineWidth = isExisting ? 3 : 2; // Thicker border for existing fields
-    ctx.strokeRect(x, y, width, height);
-    
-    // Fill with semi-transparent color
-    ctx.fillStyle = field.type === 'text' 
-      ? (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(51, 154, 240, 0.1)')
-      : (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(81, 207, 102, 0.1)');
-    ctx.fillRect(x, y, width, height);
-    
-    // Draw field name
-    ctx.fillStyle = '#333';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(field.name, x + 2, y - 4);
-    
-    // Add indicator for existing fields
-    if (isExisting) {
-      ctx.fillStyle = '#fd7e14';
-      ctx.font = '10px Arial';
-      ctx.fillText('(existant)', x + 2, y - 16);
+    try {
+      const x = field.x * currentScale;
+      const y = field.y * currentScale;
+      const width = field.width * currentScale;
+      const height = field.height * currentScale;
+      
+      // Different colors for existing vs new fields
+      const isExisting = field.isExisting;
+      const textColor = isExisting ? '#fd7e14' : '#339af0'; // orange for existing, blue for new
+      const checkboxColor = isExisting ? '#fd7e14' : '#51cf66'; // orange for existing, green for new
+      
+      // Reset any previous drawing state
+      ctx.setLineDash([]);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      
+      // Draw field box
+      ctx.strokeStyle = field.type === 'text' ? textColor : checkboxColor;
+      ctx.lineWidth = isExisting ? 3 : 2; // Thicker border for existing fields
+      ctx.strokeRect(x, y, width, height);
+      
+      // Fill with semi-transparent color
+      ctx.fillStyle = field.type === 'text' 
+        ? (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(51, 154, 240, 0.1)')
+        : (isExisting ? 'rgba(253, 126, 20, 0.1)' : 'rgba(81, 207, 102, 0.1)');
+      ctx.fillRect(x, y, width, height);
+      
+      // Draw field name
+      ctx.fillStyle = '#333';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(field.name, x + 2, y - 4);
+      
+      // Add indicator for existing fields
+      if (isExisting) {
+        ctx.fillStyle = '#fd7e14';
+        ctx.font = '10px Arial';
+        ctx.fillText('(existant)', x + 2, y - 16);
+      }
+    } catch (error) {
+      console.error('Error drawing field:', error);
+    } finally {
+      // Restore canvas state
+      ctx.restore();
     }
   }, []);
 
@@ -169,23 +185,41 @@ export function PDFEditorPage() {
   }, []);
 
   const drawPreview = useCallback((ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
-    const x = Math.min(start.x, end.x) * currentScale;
-    const y = Math.min(start.y, end.y) * currentScale;
-    const width = Math.abs(end.x - start.x) * currentScale;
-    const height = Math.abs(end.y - start.y) * currentScale;
+    // Save canvas state before drawing
+    ctx.save();
     
-    // Draw preview rectangle
-    ctx.strokeStyle = drawingMode === 'text' ? '#339af0' : '#51cf66';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]); // Dashed line for preview
-    ctx.strokeRect(x, y, width, height);
-    
-    // Fill with semi-transparent color
-    ctx.fillStyle = drawingMode === 'text' ? 'rgba(51, 154, 240, 0.2)' : 'rgba(81, 207, 102, 0.2)';
-    ctx.fillRect(x, y, width, height);
-    
-    // Reset line dash
-    ctx.setLineDash([]);
+    try {
+      const x = Math.min(start.x, end.x) * currentScale;
+      const y = Math.min(start.y, end.y) * currentScale;
+      const width = Math.abs(end.x - start.x) * currentScale;
+      const height = Math.abs(end.y - start.y) * currentScale;
+      
+      // Reset any previous drawing state
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      
+      // Draw preview rectangle
+      ctx.strokeStyle = drawingMode === 'text' ? '#339af0' : '#51cf66';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]); // Dashed line for preview
+      ctx.strokeRect(x, y, width, height);
+      
+      // Fill with semi-transparent color
+      ctx.fillStyle = drawingMode === 'text' ? 'rgba(51, 154, 240, 0.2)' : 'rgba(81, 207, 102, 0.2)';
+      ctx.fillRect(x, y, width, height);
+      
+      // Draw preview text
+      ctx.fillStyle = '#333';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(drawingMode === 'text' ? 'Champ texte' : 'Case à cocher', x + 2, y - 4);
+    } catch (error) {
+      console.error('Error drawing preview:', error);
+    } finally {
+      // Restore canvas state (this will reset line dash and other properties)
+      ctx.restore();
+    }
   }, [drawingMode]);
 
   // Separate function to draw field overlays without re-rendering the PDF
@@ -196,26 +230,45 @@ export function PDFEditorPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Restore the cached PDF rendering
-    if (pdfImageDataRef.current) {
-      ctx.putImageData(pdfImageDataRef.current, 0, 0);
-    }
+    // Save current canvas state
+    ctx.save();
     
-    // Draw existing fields for this page
-    const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
-    pageExistingFields.forEach(field => {
-      drawField(ctx, field, scale);
-    });
-    
-    // Draw user-created fields for this page
-    const pageFields = fields.filter(f => f.pageIndex === currentPage);
-    pageFields.forEach(field => {
-      drawField(ctx, field, scale);
-    });
-    
-    // Draw preview if currently drawing
-    if (isDrawing && startPos && currentPos) {
-      drawPreview(ctx, startPos, currentPos, scale);
+    try {
+      // Clear the entire canvas first
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Restore the cached PDF rendering if available
+      if (pdfImageDataRef.current) {
+        ctx.putImageData(pdfImageDataRef.current, 0, 0);
+      }
+      
+      // Reset drawing state to ensure clean overlay drawing
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+      
+      // Draw existing fields for this page
+      const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
+      pageExistingFields.forEach(field => {
+        drawField(ctx, field, scale);
+      });
+      
+      // Draw user-created fields for this page
+      const pageFields = fields.filter(f => f.pageIndex === currentPage);
+      pageFields.forEach(field => {
+        drawField(ctx, field, scale);
+      });
+      
+      // Draw preview if currently drawing
+      if (isDrawing && startPos && currentPos) {
+        drawPreview(ctx, startPos, currentPos, scale);
+      }
+    } catch (error) {
+      console.error('Error drawing field overlays:', error);
+    } finally {
+      // Restore canvas state
+      ctx.restore();
     }
   }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
 
@@ -248,8 +301,15 @@ export function PDFEditorPage() {
       canvas.width = scaledViewport.width;
       canvas.height = scaledViewport.height;
       
-      // Clear canvas
+      // Clear canvas completely
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Reset canvas state
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
       
       // Cancel any previous render operations
       if (renderTaskRef.current) {
@@ -267,8 +327,16 @@ export function PDFEditorPage() {
       
       await renderTask.promise;
       
-      // Cache the PDF rendering
-      pdfImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // Cache the PDF rendering only after successful render
+      try {
+        pdfImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch (cacheError) {
+        console.warn('Failed to cache PDF image data:', cacheError);
+        pdfImageDataRef.current = null;
+      }
+      
+      // Restore canvas state
+      ctx.restore();
       
       // After PDF renders, draw the field overlays
       drawFieldOverlays();
@@ -277,6 +345,8 @@ export function PDFEditorPage() {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', error);
       }
+      // Clear cached data on error
+      pdfImageDataRef.current = null;
     }
   }, [drawFieldOverlays]);
 
@@ -355,7 +425,7 @@ export function PDFEditorPage() {
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !startPos) return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -366,13 +436,21 @@ export function PDFEditorPage() {
     
     setCurrentPos({ x, y });
     
-    // Throttle the re-rendering to prevent flickering - use lightweight overlay drawing
+    // Throttle the re-rendering to prevent flickering and ensure smooth performance
     const now = Date.now();
     if (now - lastRenderTimeRef.current > 16) { // Max 60fps
       lastRenderTimeRef.current = now;
       
-      // Only redraw field overlays, not the entire PDF page
-      drawFieldOverlays();
+      // Cancel any pending timeout
+      if (mouseMoveTimeoutRef.current) {
+        clearTimeout(mouseMoveTimeoutRef.current);
+      }
+      
+      // Schedule overlay redraw
+      mouseMoveTimeoutRef.current = setTimeout(() => {
+        // Only redraw field overlays, not the entire PDF page
+        drawFieldOverlays();
+      }, 0);
     }
   };
 
