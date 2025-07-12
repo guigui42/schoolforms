@@ -29,7 +29,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface PDFField {
   id: string;
@@ -60,6 +60,7 @@ export function PDFEditorPage() {
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
 
   const drawField = (ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
     const x = field.x * currentScale;
@@ -114,13 +115,21 @@ export function PDFEditorPage() {
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
+      // Cancel any previous render operations
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
+      
       // Render PDF page
       const renderContext = {
         canvasContext: ctx,
         viewport: scaledViewport,
       };
       
-      await page.render(renderContext).promise;
+      const renderTask = page.render(renderContext);
+      renderTaskRef.current = renderTask;
+      
+      await renderTask.promise;
       
       // Draw existing fields for this page
       const pageFields = fields.filter(f => f.pageIndex === pageIndex);
@@ -129,7 +138,9 @@ export function PDFEditorPage() {
       });
       
     } catch (error) {
-      console.error('Error rendering page:', error);
+      if (error.name !== 'RenderingCancelledException') {
+        console.error('Error rendering page:', error);
+      }
     }
   }, [fields]);
 
@@ -139,6 +150,15 @@ export function PDFEditorPage() {
       renderPage(pdfJsDoc, currentPage);
     }
   }, [pdfJsDoc, currentPage, renderPage]);
+
+  // Cleanup render task on unmount
+  useEffect(() => {
+    return () => {
+      if (renderTaskRef.current) {
+        renderTaskRef.current.cancel();
+      }
+    };
+  }, []);
 
   const loadPDF = useCallback(async (file: File | null) => {
     if (!file) return;
@@ -160,16 +180,12 @@ export function PDFEditorPage() {
       setCurrentPage(0);
       setFields([]);
       
-      // Wait for next tick to ensure DOM is updated
-      setTimeout(() => {
-        renderPage(pdfJsDocument, 0);
-      }, 100);
     } catch (error) {
       console.error('Error loading PDF:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [renderPage]);
+  }, []);
 
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
