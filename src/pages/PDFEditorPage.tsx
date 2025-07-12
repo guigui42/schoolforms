@@ -188,6 +188,37 @@ export function PDFEditorPage() {
     ctx.setLineDash([]);
   }, [drawingMode]);
 
+  // Separate function to draw field overlays without re-rendering the PDF
+  const drawFieldOverlays = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Restore the cached PDF rendering
+    if (pdfImageDataRef.current) {
+      ctx.putImageData(pdfImageDataRef.current, 0, 0);
+    }
+    
+    // Draw existing fields for this page
+    const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
+    pageExistingFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+    
+    // Draw user-created fields for this page
+    const pageFields = fields.filter(f => f.pageIndex === currentPage);
+    pageFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+    
+    // Draw preview if currently drawing
+    if (isDrawing && startPos && currentPos) {
+      drawPreview(ctx, startPos, currentPos, scale);
+    }
+  }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
+
   // Separate function to render only the PDF page (without fields)
   const renderPDFPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
     if (!pdfJsDocument) return;
@@ -248,37 +279,6 @@ export function PDFEditorPage() {
       }
     }
   }, [drawFieldOverlays]);
-
-  // Separate function to draw field overlays without re-rendering the PDF
-  const drawFieldOverlays = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Restore the cached PDF rendering
-    if (pdfImageDataRef.current) {
-      ctx.putImageData(pdfImageDataRef.current, 0, 0);
-    }
-    
-    // Draw existing fields for this page
-    const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
-    pageExistingFields.forEach(field => {
-      drawField(ctx, field, scale);
-    });
-    
-    // Draw user-created fields for this page
-    const pageFields = fields.filter(f => f.pageIndex === currentPage);
-    pageFields.forEach(field => {
-      drawField(ctx, field, scale);
-    });
-    
-    // Draw preview if currently drawing
-    if (isDrawing && startPos && currentPos) {
-      drawPreview(ctx, startPos, currentPos, scale);
-    }
-  }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
 
   // Keep the original renderPage function for backward compatibility
   const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
