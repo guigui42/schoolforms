@@ -64,8 +64,9 @@ export function PDFEditorPage() {
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const mouseMoveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastRenderTimeRef = useRef<number>(0);
+  const pdfImageDataRef = useRef<ImageData | null>(null); // Cache the PDF rendering
 
-  const drawField = (ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
+  const drawField = useCallback((ctx: CanvasRenderingContext2D, field: PDFField, currentScale: number) => {
     const x = field.x * currentScale;
     const y = field.y * currentScale;
     const width = field.width * currentScale;
@@ -99,7 +100,7 @@ export function PDFEditorPage() {
       ctx.font = '10px Arial';
       ctx.fillText('(existant)', x + 2, y - 16);
     }
-  };
+  }, []);
 
   const extractExistingFields = useCallback(async (pdfDocument: PDFDocument) => {
     try {
@@ -167,7 +168,7 @@ export function PDFEditorPage() {
     }
   }, []);
 
-  const drawPreview = (ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
+  const drawPreview = useCallback((ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, currentScale: number) => {
     const x = Math.min(start.x, end.x) * currentScale;
     const y = Math.min(start.y, end.y) * currentScale;
     const width = Math.abs(end.x - start.x) * currentScale;
@@ -185,9 +186,10 @@ export function PDFEditorPage() {
     
     // Reset line dash
     ctx.setLineDash([]);
-  };
+  }, [drawingMode]);
 
-  const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
+  // Separate function to render only the PDF page (without fields)
+  const renderPDFPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
     if (!pdfJsDocument) return;
     
     try {
@@ -234,29 +236,54 @@ export function PDFEditorPage() {
       
       await renderTask.promise;
       
-      // Draw existing fields for this page
-      const pageExistingFields = existingFields.filter(f => f.pageIndex === pageIndex);
-      pageExistingFields.forEach(field => {
-        drawField(ctx, field, newScale);
-      });
+      // Cache the PDF rendering
+      pdfImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       
-      // Draw user-created fields for this page
-      const pageFields = fields.filter(f => f.pageIndex === pageIndex);
-      pageFields.forEach(field => {
-        drawField(ctx, field, newScale);
-      });
-      
-      // Draw preview if currently drawing
-      if (isDrawing && startPos && currentPos) {
-        drawPreview(ctx, startPos, currentPos, newScale);
-      }
+      // After PDF renders, draw the field overlays
+      drawFieldOverlays();
       
     } catch (error) {
       if (error instanceof Error && error.name !== 'RenderingCancelledException') {
         console.error('Error rendering page:', error);
       }
     }
-  }, [fields, existingFields, isDrawing, startPos, currentPos, drawField, drawPreview]);
+  }, [drawFieldOverlays]);
+
+  // Separate function to draw field overlays without re-rendering the PDF
+  const drawFieldOverlays = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Restore the cached PDF rendering
+    if (pdfImageDataRef.current) {
+      ctx.putImageData(pdfImageDataRef.current, 0, 0);
+    }
+    
+    // Draw existing fields for this page
+    const pageExistingFields = existingFields.filter(f => f.pageIndex === currentPage);
+    pageExistingFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+    
+    // Draw user-created fields for this page
+    const pageFields = fields.filter(f => f.pageIndex === currentPage);
+    pageFields.forEach(field => {
+      drawField(ctx, field, scale);
+    });
+    
+    // Draw preview if currently drawing
+    if (isDrawing && startPos && currentPos) {
+      drawPreview(ctx, startPos, currentPos, scale);
+    }
+  }, [fields, existingFields, currentPage, isDrawing, startPos, currentPos, scale, drawField, drawPreview]);
+
+  // Keep the original renderPage function for backward compatibility
+  const renderPage = useCallback(async (pdfJsDocument: pdfjsLib.PDFDocumentProxy, pageIndex: number) => {
+    await renderPDFPage(pdfJsDocument, pageIndex);
+  }, [renderPDFPage]);
 
   // Effect to render the page when PDF is loaded
   useEffect(() => {
@@ -276,6 +303,8 @@ export function PDFEditorPage() {
         clearTimeout(mouseMoveTimeoutRef.current);
         mouseMoveTimeoutRef.current = null;
       }
+      // Clear cached PDF image data
+      pdfImageDataRef.current = null;
     };
   }, []);
 
@@ -285,6 +314,9 @@ export function PDFEditorPage() {
     setIsLoading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
+      
+      // Clear the cached PDF image data when loading a new PDF
+      pdfImageDataRef.current = null;
       
       // Load with pdf-lib for form field creation
       const pdfLibDoc = await PDFDocument.load(arrayBuffer);
@@ -334,15 +366,13 @@ export function PDFEditorPage() {
     
     setCurrentPos({ x, y });
     
-    // Throttle the re-rendering to prevent flickering - simplified approach
+    // Throttle the re-rendering to prevent flickering - use lightweight overlay drawing
     const now = Date.now();
     if (now - lastRenderTimeRef.current > 16) { // Max 60fps
       lastRenderTimeRef.current = now;
       
-      // Immediate render without timeout to prevent disappearing content
-      if (pdfJsDoc) {
-        renderPage(pdfJsDoc, currentPage);
-      }
+      // Only redraw field overlays, not the entire PDF page
+      drawFieldOverlays();
     }
   };
 
@@ -396,21 +426,20 @@ export function PDFEditorPage() {
     setCurrentField(null);
     setFieldName('');
     
-    // Re-render the page with new field
-    if (pdfJsDoc) {
-      renderPage(pdfJsDoc, currentPage);
-    }
+    // Re-render the field overlays with new field
+    drawFieldOverlays();
   };
 
   const handleFieldDelete = (fieldId: string) => {
     setFields(prev => prev.filter(f => f.id !== fieldId));
-    if (pdfJsDoc) {
-      renderPage(pdfJsDoc, currentPage);
-    }
+    // Re-render the field overlays without the deleted field
+    drawFieldOverlays();
   };
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
+    // Clear the cached PDF image data when changing pages
+    pdfImageDataRef.current = null;
     if (pdfJsDoc) {
       renderPage(pdfJsDoc, newPage);
     }
